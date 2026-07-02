@@ -120,13 +120,12 @@
             <div class="space-y-1 text-left">
                 <p class="text-[10px] font-bold text-slate-500 flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1"></i>この利用者のスキャン履歴</p>
                 <div id="detail-log-list" class="border rounded-xl p-2 max-h-24 overflow-y-auto bg-slate-50 text-[10px] space-y-1 font-mono text-slate-600">
-                    <!-- 履歴のタイムスタンプが並びます -->
+                    <!-- 履歴のタイムスタンプ -->
                 </div>
             </div>
 
             <!-- 操作ボタン -->
             <div class="space-y-2 pt-2 border-t">
-                <!-- この生徒におかわりをその場で記録するボタン -->
                 <button onclick="addRefillFromDetail()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1">
                     <i class="fa-solid fa-plus"></i>
                     <span>この生徒のおかわりを1回記録（打刻）する</span>
@@ -164,7 +163,8 @@
     </div>
 
     <script>
-        const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbzL_Iv9GX0Gom28aey7dnujgBSLp8SZS23KgfQYwAJ8dqdtF0VI2wwSdfZNnLAU9RyJ/exec";
+        // ★ ご提示いただいた新しいGASのデプロイIDに基づいたURLを組み込んでいます。
+        const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyU5kATRe7KuKnIm23BJGsuAVKUz6iPNNbTEx6eRHF7eOIOlTHY6clz9tJRMxE1szxc/exec";
 
         let videoStream = null;
         let animationFrameId = null;
@@ -258,7 +258,6 @@
             animationFrameId = requestAnimationFrame(tick);
         }
 
-        // スキャン時のデータ処理
         function handleScannedData(scannedData) {
             isScanningPaused = true;
             if (navigator.vibrate) { navigator.vibrate(200); }
@@ -271,15 +270,12 @@
             const student = studentDb[qrNum];
 
             if (student) {
-                // 登録あり ➔ 詳細プロフィールを表示
                 showStudentDetailModal(qrNum);
             } else {
-                // 登録なし ➔ 新規登録モーダル
                 openAdminInputModal(qrNum, false);
             }
         }
 
-        // 個別の詳細情報を表示する
         function showStudentDetailModal(qrNum) {
             const student = studentDb[qrNum];
             if (!student) return;
@@ -290,7 +286,6 @@
             document.getElementById('detail-gousha').innerText = student.gousha;
             document.getElementById('detail-name').innerText = student.name;
 
-            // スキャン履歴データの初期化
             if (!student.logs) {
                 student.logs = [];
             }
@@ -324,19 +319,16 @@
             forceVideoPlay();
         }
 
-        // 詳細プロフィール画面から「手動でおかわり記録を登録」する処理
         function addRefillFromDetail() {
             const student = studentDb[activeQrNum];
             if (!student) return;
 
             if (confirm(`「${student.gousha} の ${student.name}」さんのおかわり記録を1回追加しますか？`)) {
                 recordRefill(activeQrNum, student.name, student.gousha);
-                // 再描画して最新の回数と履歴リストを更新
                 showStudentDetailModal(activeQrNum);
             }
         }
 
-        // スプレッドシートとおかわりの記録
         function recordRefill(qrNum, name, gousha) {
             const timeFullStr = new Date().toLocaleString('ja-JP');
             const newLog = {
@@ -349,14 +341,13 @@
             adminLogs.unshift(newLog);
             localStorage.setItem('student_okawari_logs', JSON.stringify(adminLogs));
 
-            // 生徒個人のログ履歴（Logs配列）にタイムスタンプを保存
             if (studentDb[qrNum]) {
                 if (!studentDb[qrNum].logs) {
                     studentDb[qrNum].logs = [];
                 }
                 studentDb[qrNum].logs.unshift(timeFullStr);
                 localStorage.setItem('student_db', JSON.stringify(studentDb));
-                renderStudentDb(); // 名簿リストも更新
+                renderStudentDb(); 
             }
 
             renderAdminLogs();
@@ -428,7 +419,6 @@
             const name = document.getElementById('input-name').value.trim();
             if (!name) { alert("名前を入力してください。"); return; }
             
-            // 名簿の新規登録または修正
             if (!studentDb[activeQrNum]) {
                 studentDb[activeQrNum] = { name: name, gousha: gousha, logs: [] };
             } else {
@@ -441,7 +431,6 @@
             renderStudentDb();
             closeAdminInputModal();
             
-            // 登録完了後にその生徒の詳細プロフィールを開く
             showStudentDetailModal(activeQrNum);
         }
 
@@ -455,7 +444,6 @@
             document.getElementById('admin-input-modal').classList.add('hidden');
         }
 
-        // おかわり一覧（全体ログ履歴）の描画
         function renderAdminLogs() {
             const listEl = document.getElementById('admin-log-list');
             listEl.innerHTML = '';
@@ -488,14 +476,12 @@
             });
         }
 
-        // 個別ログの削除
         function deleteSingleLog(logId) {
             const logIndex = adminLogs.findIndex(log => log.id === logId);
             if (logIndex !== -1) {
                 const log = adminLogs[logIndex];
                 if (confirm(`「${log.gousha} の ${log.name}」さんのこのおかわり記録を削除しますか？`)) {
                     
-                    // 生徒個人のプロフィール内から該当タイムスタンプを検索して削除
                     const student = studentDb[log.qrNum];
                     if (student && student.logs) {
                         const idx = student.logs.findIndex(t => t.includes(log.time) || t.includes(new Date(logId).toLocaleDateString()));
@@ -515,7 +501,6 @@
             }
         }
 
-        // 登録名簿一覧の描画
         function renderStudentDb() {
             const listEl = document.getElementById('student-db-list');
             listEl.innerHTML = '';
@@ -538,7 +523,6 @@
                             </div>
                         </div>
                         <div class="flex space-x-1">
-                            <!-- 詳細確認ボタン -->
                             <button onclick="showStudentDetailModal('${qrNum}')" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2 py-1 rounded border border-slate-200 bg-slate-50">
                                 🔍詳細
                             </button>
@@ -564,7 +548,6 @@
                 adminLogs = [];
                 localStorage.removeItem('student_okawari_logs');
                 
-                // 生徒プロフィールの履歴もクリア
                 Object.keys(studentDb).forEach(key => {
                     studentDb[key].logs = [];
                 });
