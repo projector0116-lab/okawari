@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>給食おかわり登録システム</title>
+    <title>優先券・利用者管理コンソール</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
@@ -11,57 +11,53 @@
     <!-- jsQR (QRコード読み取りライブラリ) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-2xl mx-auto shadow-2xl bg-white pb-8">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col max-w-2xl mx-auto shadow-2xl bg-white pb-8">
 
-    <!-- ヘッダー -->
-    <header id="app-header" class="bg-emerald-700 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md transition-colors duration-300">
+    <!-- ヘッダー (管理者専用デザイン) -->
+    <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
         <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-school text-xl md:text-2xl"></i>
+            <i class="fa-solid fa-user-shield text-xl md:text-2xl text-slate-300"></i>
             <div>
-                <h1 id="app-title" class="text-lg md:text-2xl font-bold tracking-wider">おかわり登録</h1>
-                <p id="app-subtitle" class="text-[9px] md:text-xs text-emerald-200">スプレッドシートと連動して記録します</p>
+                <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・利用者管理</h1>
+                <p class="text-[9px] md:text-xs text-slate-400">QRコードをスキャンして利用者の詳細情報を管理します</p>
             </div>
         </div>
-        <button onclick="toggleAdminMode()" id="admin-toggle-btn" class="text-xs bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 px-3 py-2 rounded-full font-bold transition-all flex items-center space-x-1">
-            <i class="fa-solid fa-lock"></i>
-            <span>管理者モードへ</span>
-        </button>
+        <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-full font-bold border border-slate-600 flex items-center">
+            <i class="fa-solid fa-database mr-1.5 text-emerald-400"></i>管理モード
+        </span>
     </header>
 
     <main class="p-4 md:p-6 space-y-4 flex-grow">
-        <!-- 管理者用案内 -->
-        <div id="admin-banner" class="hidden bg-slate-100 border-l-4 border-slate-700 p-3 rounded-r text-xs text-slate-800 font-bold shadow-sm">
-            <i class="fa-solid fa-user-shield mr-1"></i> 【管理者モード】使用状況のリセット（復活）や登録情報の編集が可能です。
-        </div>
 
         <!-- カメラ映像表示エリア (正方形) -->
-        <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-md mx-auto flex items-center justify-center border border-gray-200 shadow-md">
+        <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-md mx-auto flex items-center justify-center border border-slate-300 shadow-md">
             <div id="camera-loading" class="text-white text-center p-4">
-                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-slate-400"></i>
                 <p class="text-sm">カメラを起動しています...</p>
             </div>
             <div id="camera-container" class="hidden w-full h-full relative">
                 <video id="scanner-video" class="w-full h-full object-cover" playsinline></video>
-                <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
+                <div id="scan-frame" class="absolute inset-0 border-4 border-slate-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
             </div>
         </div>
 
-        <!-- カメラフリーズ対策用の再起動ボタン -->
+        <!-- カメラ再起動ボタン -->
         <div class="text-center">
-            <button onclick="restartCamera()" id="camera-refresh-btn" class="text-xs text-emerald-600 hover:text-emerald-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-emerald-50 rounded-full transition-colors">
-                <i class="fa-solid fa-arrows-rotate"></i>
+            <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
+                <i class="fa-solid fa-arrows-rotate animate-spin-slow"></i>
                 <span>📷 カメラが固まったら再起動</span>
             </button>
         </div>
 
-        <!-- 【管理者モード用】記録一覧・登録名簿の表示 -->
-        <div id="admin-log-section" class="hidden space-y-6 max-w-md mx-auto w-full">
+        <!-- 各種設定・一覧表示エリア -->
+        <div class="space-y-6 max-w-md mx-auto w-full pt-2">
+            
             <!-- Googleスプレッドシート連携 -->
-            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3 shadow-sm">
-                <h3 class="text-xs font-bold text-emerald-800 flex items-center"><i class="fa-solid fa-file-excel mr-2"></i>Googleスプレッドシート連携</h3>
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+                <h3 class="text-xs font-bold text-slate-700 flex items-center"><i class="fa-solid fa-file-excel mr-2 text-emerald-600"></i>Googleスプレッドシート連携</h3>
                 <div class="space-y-2">
-                    <label class="block text-[10px] font-bold text-gray-500">Google Apps Script (GAS) のURL</label>
-                    <input type="text" id="gas-url" class="w-full border border-gray-300 rounded p-2 text-xs outline-none">
+                    <label class="block text-[10px] font-bold text-slate-500">Google Apps Script (GAS) のURL</label>
+                    <input type="text" id="gas-url" class="w-full border border-slate-300 rounded p-2 text-xs outline-none">
                 </div>
                 <div class="flex space-x-2 pt-1">
                     <button onclick="syncStudentDbFromSheets()" id="sync-btn" class="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded text-[10px] shadow-sm flex items-center justify-center">
@@ -71,81 +67,85 @@
                 </div>
             </div>
 
-            <!-- おかわり記録 (個別削除に対応) -->
+            <!-- 1. 登録名簿一覧 -->
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-bold text-gray-600 flex items-center"><i class="fa-solid fa-list-ul mr-2"></i>おかわり記録一覧</h3>
-                    <div class="space-x-2">
-                        <button onclick="resetAllUsage()" class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold px-2 py-1 rounded-lg transition-colors">
-                            全員の使用状況を一括リセット
-                        </button>
-                        <button onclick="clearAdminLogs()" class="text-xs text-red-500 font-bold">記録をすべて消去</button>
-                    </div>
-                </div>
-                <div id="admin-log-list" class="space-y-2 max-h-48 overflow-y-auto bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs"></div>
-            </div>
-
-            <!-- 登録名簿一覧 (個別削除対応) -->
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-bold text-gray-600 flex items-center"><i class="fa-solid fa-address-book mr-2"></i>登録名簿一覧</h3>
+                    <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-address-book mr-2"></i>登録名簿一覧</h3>
                     <button onclick="clearStudentDb()" class="text-xs text-red-500 font-bold">名簿をすべて消去</button>
                 </div>
-                <div id="student-db-list" class="space-y-2 max-h-48 overflow-y-auto bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs"></div>
+                <div id="student-db-list" class="space-y-2 max-h-48 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                    <!-- 名簿一覧 -->
+                </div>
+            </div>
+
+            <!-- 2. 全体おかわり記録 -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-list-ul mr-2"></i>全体おかわり記録一覧</h3>
+                    <button onclick="clearAdminLogs()" class="text-xs text-red-500 font-bold">全記録を消去</button>
+                </div>
+                <div id="admin-log-list" class="space-y-2 max-h-48 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                    <!-- 記録ログ -->
+                </div>
             </div>
         </div>
     </main>
 
-    <!-- 【一般モード】中央スキャン結果＆使用確認モーダル -->
-    <div id="student-scan-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div id="student-modal-card" class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center transform scale-95 transition-all duration-200">
-            <div id="student-modal-content"></div>
-        </div>
-    </div>
-
-    <!-- 【パスワード入力モーダル】 (8桁制限) -->
-    <div id="pw-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
-            <h3 class="text-lg font-bold text-gray-800 flex items-center border-b pb-2"><i class="fa-solid fa-key text-emerald-600 mr-2"></i>管理者認証</h3>
-            <p class="text-xs text-gray-500">管理者モードに入るには、8桁のパスワードを入力してください。</p>
-            <div>
-                <input type="password" id="pw-input" maxlength="8" placeholder="8桁のパスワードを入力" class="w-full border border-gray-300 rounded-lg p-2.5 text-center text-lg tracking-widest font-mono outline-none">
-                <p id="pw-error" class="hidden text-xs text-red-500 mt-1.5 font-semibold text-center">※パスワードが違います</p>
-            </div>
-            <div class="flex space-x-3 pt-2">
-                <button onclick="closePasswordModal()" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm">キャンセル</button>
-                <button onclick="verifyPassword()" class="flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm">認証</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 【管理者モード専用】スキャン成功時・状態操作カード -->
-    <div id="admin-result-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div id="admin-result-card" class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl text-center transform scale-95 transition-all duration-200">
-            <p class="text-xs text-slate-600 mb-1 font-bold">チケットの読み取り結果</p>
-            <div class="my-3">
-                <span class="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold" id="admin-result-gousha"></span>
-                <span class="font-bold text-lg md:text-xl text-gray-800 ml-2" id="admin-result-name"></span>
-            </div>
+    <!-- 【中央ポップアップ】利用者詳細プロフィールモーダル -->
+    <div id="student-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div id="student-detail-card" class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl transform scale-95 transition-all duration-200">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center border-b pb-2"><i class="fa-solid fa-id-card text-slate-700 mr-2"></i>利用者詳細プロフィール</h3>
             
-            <!-- 使用状況表示＆リセットボタン -->
-            <div id="admin-status-area" class="my-4 p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3 shadow-inner"></div>
+            <!-- 基本プロフィール -->
+            <div class="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-100 text-left text-xs">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">管理番号:</span>
+                    <strong id="detail-qr-num" class="text-slate-800 font-mono"></strong>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">号車:</span>
+                    <strong id="detail-gousha" class="text-slate-800"></strong>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">名前:</span>
+                    <strong id="detail-name" class="text-slate-800 text-sm"></strong>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">累計おかわり回数:</span>
+                    <span class="font-bold text-emerald-600 text-sm"><span id="detail-count">0</span> 回</span>
+                </div>
+            </div>
 
-            <div class="flex justify-center space-x-3 mt-4 border-t pt-3">
-                <button onclick="triggerEditFromAdminResult()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-2.5 rounded-xl transition-colors">登録情報を修正</button>
-                <button onclick="closeAdminResult()" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-xl transition-colors">閉じる</button>
+            <!-- 個人の細かい利用履歴リスト -->
+            <div class="space-y-1 text-left">
+                <p class="text-[10px] font-bold text-slate-500 flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1"></i>この利用者のスキャン履歴</p>
+                <div id="detail-log-list" class="border rounded-xl p-2 max-h-24 overflow-y-auto bg-slate-50 text-[10px] space-y-1 font-mono text-slate-600">
+                    <!-- 履歴のタイムスタンプが並びます -->
+                </div>
+            </div>
+
+            <!-- 操作ボタン -->
+            <div class="space-y-2 pt-2 border-t">
+                <!-- この生徒におかわりをその場で記録するボタン -->
+                <button onclick="addRefillFromDetail()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>この生徒のおかわりを1回記録（打刻）する</span>
+                </button>
+                <div class="flex space-x-2">
+                    <button onclick="triggerEditFromDetail()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-xs transition-colors">修正</button>
+                    <button onclick="closeStudentDetailModal()" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition-colors">閉じる</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 【管理者用】名前・号車入力モーダル -->
+    <!-- 利用者登録・修正モーダル -->
     <div id="admin-input-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <h3 id="modal-title" class="text-lg font-bold text-gray-800 flex items-center border-b pb-2"><i class="fa-solid fa-user-plus text-slate-700 mr-2"></i>名簿登録</h3>
             <div class="bg-slate-50 p-2.5 rounded-lg text-xs">QRコード番号: <strong id="modal-qr-num" class="text-slate-800 ml-1"></strong></div>
             <div>
                 <label class="block text-xs font-bold text-gray-500 mb-1">号車</label>
-                <!-- 選択肢を3号車までに制限 -->
                 <select id="input-gousha" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none">
                     <option value="1号車">1号車</option>
                     <option value="2号車">2号車</option>
@@ -164,18 +164,15 @@
     </div>
 
     <script>
-        const ADMIN_PASSWORD = "02050205";
         const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbzL_Iv9GX0Gom28aey7dnujgBSLp8SZS23KgfQYwAJ8dqdtF0VI2wwSdfZNnLAU9RyJ/exec";
 
         let videoStream = null;
         let animationFrameId = null;
         let isScanningPaused = false;
-        let isAdminMode = false; 
         let activeQrNum = null; 
         
         let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
         let adminLogs = JSON.parse(localStorage.getItem('student_okawari_logs')) || [];
-        let usedTickets = JSON.parse(localStorage.getItem('used_tickets')) || {};
 
         window.onload = function() {
             startCamera();
@@ -189,79 +186,6 @@
                 localStorage.setItem('gas_url', DEFAULT_GAS_URL);
             }
         };
-
-        function toggleAdminMode() {
-            if (!isAdminMode) {
-                openPasswordModal();
-            } else {
-                setAdminModeState(false);
-            }
-        }
-
-        function openPasswordModal() {
-            isScanningPaused = true;
-            document.getElementById('pw-input').value = '';
-            document.getElementById('pw-error').classList.add('hidden');
-            document.getElementById('pw-modal').classList.remove('hidden');
-            document.getElementById('pw-input').focus();
-        }
-
-        function closePasswordModal() {
-            document.getElementById('pw-modal').classList.add('hidden');
-            isScanningPaused = false;
-            forceVideoPlay();
-        }
-
-        function verifyPassword() {
-            const enteredPw = document.getElementById('pw-input').value;
-            const errorLabel = document.getElementById('pw-error');
-            if (enteredPw === ADMIN_PASSWORD) {
-                document.getElementById('pw-modal').classList.add('hidden');
-                setAdminModeState(true);
-            } else {
-                errorLabel.classList.remove('hidden');
-                document.getElementById('pw-input').value = '';
-                document.getElementById('pw-input').focus();
-            }
-        }
-
-        function setAdminModeState(state) {
-            isAdminMode = state;
-            const header = document.getElementById('app-header');
-            const subTitle = document.getElementById('app-subtitle');
-            const toggleBtn = document.getElementById('admin-toggle-btn');
-            const adminBanner = document.getElementById('admin-banner');
-            const adminSection = document.getElementById('admin-log-section');
-            const scanFrame = document.getElementById('scan-frame');
-            const refreshBtn = document.getElementById('camera-refresh-btn');
-
-            closeStudentScanModal();
-            closeAdminResult();
-            isScanningPaused = false;
-
-            if (isAdminMode) {
-                header.className = "bg-slate-700 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md transition-colors duration-300";
-                subTitle.innerText = "管理用おかわり記録スキャナー";
-                subTitle.className = "text-[9px] md:text-xs text-slate-300";
-                toggleBtn.className = "text-xs bg-slate-800 hover:bg-slate-900 border border-slate-600 px-3 py-2 rounded-full font-bold transition-all flex items-center space-x-1";
-                toggleBtn.innerHTML = `<i class="fa-solid fa-unlock"></i><span>一般モードへ</span>`;
-                scanFrame.className = "absolute inset-0 border-4 border-emerald-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
-                adminBanner.classList.remove('hidden');
-                adminSection.classList.remove('hidden');
-                refreshBtn.className = "text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-100 rounded-full transition-colors";
-            } else {
-                header.className = "bg-emerald-700 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md transition-colors duration-300";
-                subTitle.innerText = "スプレッドシートと連動して記録します";
-                subTitle.className = "text-[9px] md:text-xs text-emerald-200";
-                toggleBtn.className = "text-xs bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 px-3 py-2 rounded-full font-bold transition-all flex items-center space-x-1";
-                toggleBtn.innerHTML = `<i class="fa-solid fa-lock"></i><span>管理者モードへ</span>`;
-                scanFrame.className = "absolute inset-0 border-4 border-emerald-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
-                adminBanner.classList.add('hidden');
-                adminSection.classList.add('hidden');
-                refreshBtn.className = "text-xs text-emerald-600 hover:text-emerald-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-emerald-50 rounded-full transition-colors";
-            }
-            forceVideoPlay();
-        }
 
         async function startCamera() {
             const video = document.getElementById('scanner-video');
@@ -334,6 +258,7 @@
             animationFrameId = requestAnimationFrame(tick);
         }
 
+        // スキャン時のデータ処理
         function handleScannedData(scannedData) {
             isScanningPaused = true;
             if (navigator.vibrate) { navigator.vibrate(200); }
@@ -345,96 +270,73 @@
             activeQrNum = qrNum;
             const student = studentDb[qrNum];
 
-            if (isAdminMode) {
-                if (student) {
-                    showAdminResult(student.name, student.gousha, qrNum);
-                } else {
-                    openAdminInputModal(qrNum, false);
-                }
+            if (student) {
+                // 登録あり ➔ 詳細プロフィールを表示
+                showStudentDetailModal(qrNum);
             } else {
-                openStudentScanModal(qrNum, student);
+                // 登録なし ➔ 新規登録モーダル
+                openAdminInputModal(qrNum, false);
             }
         }
 
-        /* --- 一般モード用：中央ポップアップモーダル制御 --- */
-        function openStudentScanModal(qrNum, student) {
-            const modal = document.getElementById('student-scan-modal');
-            const content = document.getElementById('student-modal-content');
-            const card = document.getElementById('student-modal-card');
-            
-            card.className = "bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center transform transition-all duration-200";
+        // 【新機能】個人の詳細情報を表示する
+        function showStudentDetailModal(qrNum) {
+            const student = studentDb[qrNum];
+            if (!student) return;
 
-            if (!student) {
-                content.innerHTML = `
-                    <i class="fa-solid fa-circle-exclamation text-rose-500 text-5xl mb-2"></i>
-                    <h3 class="font-bold text-lg text-rose-800">登録がありません</h3>
-                    <p class="text-xs text-rose-700 bg-rose-50 p-2 rounded max-w-xs mx-auto border border-rose-100 font-mono mb-2">QR番号: ${qrNum}</p>
-                    <p class="text-xs text-rose-600 font-bold leading-relaxed">お名前がまだ登録されていません。<br>級長（管理者）に登録してもらってください。</p>
-                    <div class="pt-2">
-                        <button onclick="closeStudentScanModal()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-sm transition-all active:scale-95">
-                            とじる
-                        </button>
-                    </div>
-                `;
-            } else if (usedTickets[qrNum]) {
-                content.innerHTML = `
-                    <i class="fa-solid fa-circle-minus text-amber-500 text-5xl mb-2"></i>
-                    <h3 class="font-bold text-lg text-amber-800">使用済みです</h3>
-                    <div class="my-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
-                        <span class="bg-amber-200 text-amber-800 px-2.5 py-0.5 rounded text-[10px] font-bold">${student.gousha}</span>
-                        <span class="font-bold text-sm text-gray-800 ml-1.5">${student.name} さん</span>
-                    </div>
-                    <p class="text-xs text-amber-700 font-bold leading-relaxed">このチケットは今日すでにおかわりしています。<br><span class="text-[10px] text-amber-600 font-medium">級長（管理者）にチケットを返却してください。</span></p>
-                    <div class="pt-2">
-                        <button onclick="closeStudentScanModal()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm transition-all active:scale-95">
-                            とじる
-                        </button>
-                    </div>
-                `;
-            } else {
-                content.innerHTML = `
-                    <i class="fa-solid fa-circle-question text-emerald-600 text-5xl mb-2 animate-bounce"></i>
-                    <h3 class="font-bold text-lg text-gray-800 font-black">おかわりチケットを使用しますか？</h3>
-                    <div class="my-3 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                        <span class="bg-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded text-[10px] font-bold">${student.gousha}</span>
-                        <span class="font-bold text-base text-gray-800 ml-1.5">${student.name} さん</span>
-                    </div>
-                    <div class="flex space-x-3 pt-2">
-                        <button onclick="closeStudentScanModal()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm transition-all active:scale-95">
-                            いいえ
-                        </button>
-                        <button onclick="confirmRefillUse('${qrNum}', '${student.name}', '${student.gousha}')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm transition-all active:scale-95 shadow-md">
-                            はい、使用する
-                        </button>
-                    </div>
-                `;
+            activeQrNum = qrNum;
+
+            document.getElementById('detail-qr-num').innerText = qrNum;
+            document.getElementById('detail-gousha').innerText = student.gousha;
+            document.getElementById('detail-name').innerText = student.name;
+
+            // スキャン履歴データの初期化
+            if (!student.logs) {
+                student.logs = [];
             }
 
+            document.getElementById('detail-count').innerText = student.logs.length;
+
+            const logListEl = document.getElementById('detail-log-list');
+            logListEl.innerHTML = '';
+            
+            if (student.logs.length === 0) {
+                logListEl.innerHTML = `<p class="text-center py-2 text-slate-400">おかわり記録はありません</p>`;
+            } else {
+                student.logs.forEach(timeStr => {
+                    logListEl.innerHTML += `<p class="border-b border-slate-200/60 pb-1 py-0.5"><i class="fa-solid fa-check text-emerald-500 mr-1.5"></i>${timeStr}</p>`;
+                });
+            }
+
+            const modal = document.getElementById('student-detail-modal');
+            const card = document.getElementById('student-detail-card');
             modal.classList.remove('hidden');
             setTimeout(() => card.classList.remove('scale-95'), 10);
-            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-amber-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80";
+            
+            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-slate-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
         }
 
-        // 使用を確定して打刻する処理
-        function confirmRefillUse(qrNum, name, gousha) {
-            recordRefill(qrNum, name, gousha);
-            
-            usedTickets[qrNum] = true;
-            localStorage.setItem('used_tickets', JSON.stringify(usedTickets));
-            
-            closeStudentScanModal();
-            alert(`おかわり完了！\n${gousha} の ${name} さんの記録をスプレッドシートに保存しました。`);
-        }
-
-        function closeStudentScanModal() {
-            document.getElementById('student-scan-modal').classList.add('hidden');
-            document.getElementById('student-modal-card').classList.add('scale-95');
-            const frameColor = isAdminMode ? "border-slate-500" : "border-emerald-500";
-            document.getElementById('scan-frame').className = `absolute inset-0 border-4 ${frameColor} m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse`;
+        function closeStudentDetailModal() {
+            document.getElementById('student-detail-modal').classList.add('hidden');
+            document.getElementById('student-detail-card').classList.add('scale-95');
+            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-emerald-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
             isScanningPaused = false;
             forceVideoPlay();
         }
 
+        // 詳細プロフィール画面から「手動でおかわり記録を登録」する処理
+        function addRefillFromDetail() {
+            const student = studentDb[activeQrNum];
+            if (!student) return;
+
+            if (confirm(`「${student.gousha} の ${student.name}」さんのおかわり記録を1回追加しますか？`)) {
+                recordRefill(activeQrNum, student.name, student.gousha);
+                // 再描画して最新の回数と履歴リストを更新
+                showStudentDetailModal(activeQrNum);
+            }
+        }
+
+        // スプレッドシートとおかわりの記録
         function recordRefill(qrNum, name, gousha) {
             const timeFullStr = new Date().toLocaleString('ja-JP');
             const newLog = {
@@ -446,6 +348,17 @@
             };
             adminLogs.unshift(newLog);
             localStorage.setItem('student_okawari_logs', JSON.stringify(adminLogs));
+
+            // 生徒個人のログ履歴（Logs配列）にタイムスタンプを保存
+            if (studentDb[qrNum]) {
+                if (!studentDb[qrNum].logs) {
+                    studentDb[qrNum].logs = [];
+                }
+                studentDb[qrNum].logs.unshift(timeFullStr);
+                localStorage.setItem('student_db', JSON.stringify(studentDb));
+                renderStudentDb(); // 名簿リストも更新
+            }
+
             renderAdminLogs();
 
             const gasUrl = localStorage.getItem('gas_url');
@@ -483,89 +396,11 @@
                     console.error("同期失敗:", err);
                     alert("スプレッドシートとの同期に失敗しました。\n・URLに間違いがないか\n・GASが正しく全員に公開デプロイされているか確認してください。");
                 })
-                .finally(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                });
+                .finally(() => { btn.innerHTML = originalText; btn.disabled = false; });
         }
 
-        // 管理者画面用のステータス表示（リセットボタン）
-        function showAdminResult(name, gousha, qrNum) {
-            document.getElementById('admin-result-name').innerText = name + " さん";
-            document.getElementById('admin-result-gousha').innerText = gousha;
-
-            const isUsed = usedTickets[qrNum];
-            const statusArea = document.getElementById('admin-status-area');
-            
-            if (isUsed) {
-                statusArea.innerHTML = `
-                    <p class="text-xs text-amber-600 font-bold flex items-center justify-center">
-                        <i class="fa-solid fa-circle-minus mr-1"></i> 現在：使用済み 🔴 (再スキャン不可)
-                    </p>
-                    <button onclick="resetSingleTicket('${qrNum}')" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2.5 rounded-lg transition-transform active:scale-95">
-                        使用状況をクリアして【未使用】に戻す
-                    </button>
-                `;
-            } else {
-                statusArea.innerHTML = `
-                    <p class="text-xs text-emerald-600 font-bold flex items-center justify-center">
-                        <i class="fa-solid fa-circle-check mr-1"></i> 現在：未使用 🟢 (スキャン可能)
-                    </p>
-                    <button onclick="forceUseSingleTicket('${qrNum}')" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs py-2.5 rounded-lg transition-transform active:scale-95">
-                        使用済みに設定する
-                    </button>
-                `;
-            }
-
-            const modal = document.getElementById('admin-result-modal');
-            const card = document.getElementById('admin-result-card');
-            modal.classList.remove('hidden');
-            setTimeout(() => card.classList.remove('scale-95'), 10);
-            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-slate-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80";
-        }
-
-        function closeAdminResult() {
-            document.getElementById('admin-result-modal').classList.add('hidden');
-            document.getElementById('admin-result-card').classList.add('scale-95');
-            const frameColor = isAdminMode ? "border-slate-500" : "border-emerald-500";
-            document.getElementById('scan-frame').className = `absolute inset-0 border-4 ${frameColor} m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse`;
-            isScanningPaused = false;
-            forceVideoPlay();
-        }
-
-        // 1人ずつ使用状況をリセットして未使用に戻す
-        function resetSingleTicket(qrNum) {
-            usedTickets[qrNum] = false;
-            localStorage.setItem('used_tickets', JSON.stringify(usedTickets));
-            const student = studentDb[qrNum];
-            showAdminResult(student.name, student.gousha, qrNum); 
-            alert(`No.${qrNum} のおかわり使用状況を【未使用】に戻しました。`);
-        }
-
-        // 個別使用済み設定
-        function forceUseSingleTicket(qrNum) {
-            usedTickets[qrNum] = true;
-            localStorage.setItem('used_tickets', JSON.stringify(usedTickets));
-            const student = studentDb[qrNum];
-            showAdminResult(student.name, student.gousha, qrNum);
-            alert(`No.${qrNum} を【使用済み】に設定しました。`);
-        }
-
-        // 全員リセット
-        function resetAllUsage() {
-            if (confirm("全員の使用状況をリセットし、すべてのチケットを【未使用】に戻しますか？\n（次の日の給食の準備などに便利です）")) {
-                usedTickets = {};
-                localStorage.removeItem('used_tickets');
-                alert("全員の使用状況を【未使用】にリセットしました！");
-                if (activeQrNum && studentDb[activeQrNum]) {
-                    const student = studentDb[activeQrNum];
-                    showAdminResult(student.name, student.gousha, activeQrNum);
-                }
-            }
-        }
-
-        function triggerEditFromAdminResult() {
-            document.getElementById('admin-result-modal').classList.add('hidden');
+        function triggerEditFromDetail() {
+            document.getElementById('student-detail-modal').classList.add('hidden');
             openAdminInputModal(activeQrNum, true); 
         }
 
@@ -593,39 +428,44 @@
             const name = document.getElementById('input-name').value.trim();
             if (!name) { alert("名前を入力してください。"); return; }
             
-            // 名簿に保存
-            studentDb[activeQrNum] = { name: name, gousha: gousha };
+            // 名簿の新規登録または修正
+            if (!studentDb[activeQrNum]) {
+                studentDb[activeQrNum] = { name: name, gousha: gousha, logs: [] };
+            } else {
+                studentDb[activeQrNum].name = name;
+                studentDb[activeQrNum].gousha = gousha;
+            }
+            
             localStorage.setItem('student_db', JSON.stringify(studentDb));
-
-            // 新規登録・上書き時に自動で使用ロックをクリア
-            usedTickets[activeQrNum] = false;
-            localStorage.setItem('used_tickets', JSON.stringify(usedTickets));
 
             renderStudentDb();
             closeAdminInputModal();
-            isScanningPaused = false;
+            
+            // 登録完了後にその生徒の詳細プロフィールを開く
+            showStudentDetailModal(activeQrNum);
         }
 
         function cancelAdminInput() {
             closeAdminInputModal();
             isScanningPaused = false;
+            forceVideoPlay();
         }
 
         function closeAdminInputModal() {
             document.getElementById('admin-input-modal').classList.add('hidden');
         }
 
-        /* --- 一覧（履歴・名簿）の描画 & 個別削除対応 --- */
+        // おかわり一覧（全体ログ履歴）の描画
         function renderAdminLogs() {
             const listEl = document.getElementById('admin-log-list');
             listEl.innerHTML = '';
             if (adminLogs.length === 0) {
-                listEl.innerHTML = `<p class="text-center py-6 text-gray-400">現在、おかわりした記録はありません</p>`;
+                listEl.innerHTML = `<p class="text-center py-6 text-slate-400">現在、おかわりした記録はありません</p>`;
                 return;
             }
             adminLogs.forEach(log => {
                 listEl.innerHTML += `
-                    <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                    <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
                         <div class="flex items-center space-x-3">
                             <span class="bg-emerald-50 text-emerald-700 p-2 rounded-lg text-sm font-bold">
                                 <i class="fa-solid fa-circle-check"></i>
@@ -633,13 +473,13 @@
                             <div>
                                 <div class="flex items-center space-x-2">
                                     <span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${log.gousha}</span>
-                                    <span class="font-bold text-gray-800">${log.name}</span>
+                                    <span class="font-bold text-slate-800">${log.name}</span>
                                 </div>
-                                <p class="text-[9px] text-gray-400 mt-0.5">QR: ${log.qrNum} のおかわりを記録しました</p>
+                                <p class="text-[9px] text-slate-400 mt-0.5">QR: ${log.qrNum} のおかわりを記録しました</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span class="text-[9px] text-gray-400 font-mono">${log.time}</span>
+                            <span class="text-[9px] text-slate-400 font-mono">${log.time}</span>
                             <button onclick="deleteSingleLog(${log.id})" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
@@ -648,12 +488,29 @@
             });
         }
 
-        // 個別のおかわり記録（履歴）を消去する処理
+        // 個別ログの削除
         function deleteSingleLog(logId) {
             const logIndex = adminLogs.findIndex(log => log.id === logId);
             if (logIndex !== -1) {
                 const log = adminLogs[logIndex];
                 if (confirm(`「${log.gousha} の ${log.name}」さんのこのおかわり記録を削除しますか？`)) {
+                    
+                    // 生徒個人のプロフィール内から該当タイムスタンプを検索して削除
+                    const student = studentDb[log.qrNum];
+                    if (student && student.logs) {
+                        // 完全に一致するタイムスタンプなどを削除
+                        // 同時刻に複数打刻があるなどの稀なケースを考え、一番近い1件を削除します
+                        const idx = student.logs.findIndex(t => t.includes(log.time) || t.includes(new Date(logId).toLocaleDateString()));
+                        if (idx !== -1) {
+                            student.logs.splice(idx, 1);
+                        } else {
+                            // 部分一致で見つからなかった場合の安全なフォールバック
+                            student.logs.shift();
+                        }
+                        localStorage.setItem('student_db', JSON.stringify(studentDb));
+                        renderStudentDb();
+                    }
+
                     adminLogs.splice(logIndex, 1);
                     localStorage.setItem('student_okawari_logs', JSON.stringify(adminLogs));
                     renderAdminLogs();
@@ -661,17 +518,38 @@
             }
         }
 
+        // 登録名簿一覧の描画
         function renderStudentDb() {
             const listEl = document.getElementById('student-db-list');
             listEl.innerHTML = '';
             const keys = Object.keys(studentDb);
             if (keys.length === 0) {
-                listEl.innerHTML = `<p class="text-center py-6 text-gray-400">登録されている生徒名簿はありません</p>`;
+                listEl.innerHTML = `<p class="text-center py-6 text-slate-400">登録されている生徒名簿はありません</p>`;
                 return;
             }
             keys.forEach(qrNum => {
                 const s = studentDb[qrNum];
-                listEl.innerHTML += `<div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between shadow-sm"><div class="flex items-center space-x-3"><span class="bg-slate-100 text-slate-600 p-2 rounded-lg text-sm font-bold font-mono">#${qrNum}</span><div><span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${s.gousha}</span><span class="font-bold text-gray-800 ml-1.5">${s.name}</span></div></div><button onclick="deleteStudent('${qrNum}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1"><i class="fa-solid fa-trash-can"></i></button></div>`;
+                const count = s.logs ? s.logs.length : 0;
+                listEl.innerHTML += `
+                    <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                        <div class="flex items-center space-x-3">
+                            <span class="bg-slate-100 text-slate-600 p-2 rounded-lg text-sm font-bold font-mono">#${qrNum}</span>
+                            <div>
+                                <span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${s.gousha}</span>
+                                <span class="font-bold text-slate-800 ml-1.5">${s.name}</span>
+                                <span class="text-[10px] text-emerald-600 font-bold ml-2">(${count}回)</span>
+                            </div>
+                        </div>
+                        <div class="flex space-x-1">
+                            <!-- 🔍詳細確認ボタン -->
+                            <button onclick="showStudentDetailModal('${qrNum}')" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2 py-1 rounded border border-slate-200 bg-slate-50">
+                                🔍詳細
+                            </button>
+                            <button onclick="deleteStudent('${qrNum}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>`;
             });
         }
 
@@ -685,10 +563,18 @@
         }
 
         function clearAdminLogs() {
-            if (confirm("これまでの「おかわり記録一覧」をすべて消去しますか？")) {
+            if (confirm("これまでの「おかわり記録一覧」をすべて消去しますか？\n（生徒ごとの累計回数もすべてリセットされます）")) {
                 adminLogs = [];
                 localStorage.removeItem('student_okawari_logs');
+                
+                // 生徒プロフィールの履歴もクリア
+                Object.keys(studentDb).forEach(key => {
+                    studentDb[key].logs = [];
+                });
+                localStorage.setItem('student_db', JSON.stringify(studentDb));
+
                 renderAdminLogs();
+                renderStudentDb();
             }
         }
 
