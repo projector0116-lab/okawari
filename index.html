@@ -279,7 +279,7 @@
             }
         }
 
-        // 【新機能】個人の詳細情報を表示する
+        // 個別の詳細情報を表示する
         function showStudentDetailModal(qrNum) {
             const student = studentDb[qrNum];
             if (!student) return;
@@ -498,13 +498,10 @@
                     // 生徒個人のプロフィール内から該当タイムスタンプを検索して削除
                     const student = studentDb[log.qrNum];
                     if (student && student.logs) {
-                        // 完全に一致するタイムスタンプなどを削除
-                        // 同時刻に複数打刻があるなどの稀なケースを考え、一番近い1件を削除します
                         const idx = student.logs.findIndex(t => t.includes(log.time) || t.includes(new Date(logId).toLocaleDateString()));
                         if (idx !== -1) {
                             student.logs.splice(idx, 1);
                         } else {
-                            // 部分一致で見つからなかった場合の安全なフォールバック
                             student.logs.shift();
                         }
                         localStorage.setItem('student_db', JSON.stringify(studentDb));
@@ -541,7 +538,7 @@
                             </div>
                         </div>
                         <div class="flex space-x-1">
-                            <!-- 🔍詳細確認ボタン -->
+                            <!-- 詳細確認ボタン -->
                             <button onclick="showStudentDetailModal('${qrNum}')" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2 py-1 rounded border border-slate-200 bg-slate-50">
                                 🔍詳細
                             </button>
