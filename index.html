@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>優先券・利用者管理コンソール</title>
+    <title>給食おかわり名簿登録システム</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
@@ -11,25 +11,25 @@
     <!-- jsQR (QRコード読み取りライブラリ) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col max-w-2xl mx-auto shadow-2xl bg-white pb-8">
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-2xl mx-auto shadow-2xl bg-white pb-8">
 
-    <!-- ヘッダー (管理者専用デザイン) -->
+    <!-- ヘッダー -->
     <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
         <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-user-shield text-xl md:text-2xl text-slate-300"></i>
+            <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
             <div>
-                <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・利用者管理</h1>
-                <p class="text-[9px] md:text-xs text-slate-400">QRコードをスキャンして利用者の詳細情報を管理します</p>
+                <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・名簿管理</h1>
+                <p class="text-[9px] md:text-xs text-slate-400">QRスキャンまたは手動入力で名簿の登録・確認を行います</p>
             </div>
         </div>
         <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-full font-bold border border-slate-600 flex items-center">
-            <i class="fa-solid fa-database mr-1.5 text-emerald-400"></i>管理モード
+            <i class="fa-solid fa-plane-slash mr-1.5 text-amber-400"></i>オフライン専用
         </span>
     </header>
 
-    <main class="p-4 md:p-6 space-y-4 flex-grow">
+    <main class="p-4 md:p-6 space-y-5 flex-grow">
 
-        <!-- カメラ映像表示エリア (正方形) -->
+        <!-- 1. カメラ映像表示エリア (正方形) -->
         <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-md mx-auto flex items-center justify-center border border-slate-300 shadow-md">
             <div id="camera-loading" class="text-white text-center p-4">
                 <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-slate-400"></i>
@@ -41,108 +41,44 @@
             </div>
         </div>
 
-        <!-- カメラ再起動ボタン -->
-        <div class="text-center">
-            <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
-                <i class="fa-solid fa-arrows-rotate animate-spin-slow"></i>
-                <span>📷 カメラが固まったら再起動</span>
-            </button>
+        <!-- カメラ再起動 ＆ 手動入力エリア -->
+        <div class="max-w-md mx-auto w-full space-y-4">
+            <div class="text-center">
+                <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>📷 カメラが固まったら再起動</span>
+                </button>
+            </div>
+
+            <!-- ★【新機能】出席番号・管理番号の手動入力欄 -->
+            <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl shadow-sm space-y-2">
+                <label class="block text-xs font-bold text-slate-600"><i class="fa-solid fa-keyboard mr-1 text-slate-500"></i> 番号を手動で入力して検索 / 登録</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="manual-number-input" onkeydown="if(event.key === 'Enter') submitManualNumber()" placeholder="例：101（出席番号や管理番号）" class="flex-grow border border-gray-300 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-slate-500">
+                    <button onclick="submitManualNumber()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition-colors shadow-sm">
+                        検索 / 登録
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- 各種設定・一覧表示エリア -->
-        <div class="space-y-6 max-w-md mx-auto w-full pt-2">
-            
-            <!-- Googleスプレッドシート連携 -->
-            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
-                <h3 class="text-xs font-bold text-slate-700 flex items-center"><i class="fa-solid fa-file-excel mr-2 text-emerald-600"></i>Googleスプレッドシート連携</h3>
-                <div class="space-y-2">
-                    <label class="block text-[10px] font-bold text-slate-500">Google Apps Script (GAS) のURL</label>
-                    <input type="text" id="gas-url" class="w-full border border-slate-300 rounded p-2 text-xs outline-none">
-                </div>
-                <div class="flex space-x-2 pt-1">
-                    <button onclick="syncStudentDbFromSheets()" id="sync-btn" class="flex-grow bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded text-[10px] shadow-sm flex items-center justify-center">
-                        <i class="fa-solid fa-arrows-rotate mr-1"></i> スプレッドシートから名簿を同期
-                    </button>
-                    <button onclick="saveGasUrl()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-3 rounded text-[10px]">URLを保存</button>
-                </div>
+        <!-- 2. 登録名簿一覧 -->
+        <div class="space-y-3 max-w-md mx-auto w-full pt-2">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-address-book mr-2"></i>登録名簿一覧</h3>
+                <button onclick="clearStudentDb()" class="text-xs text-red-500 font-bold">名簿をすべて消去</button>
             </div>
-
-            <!-- 1. 登録名簿一覧 -->
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-address-book mr-2"></i>登録名簿一覧</h3>
-                    <button onclick="clearStudentDb()" class="text-xs text-red-500 font-bold">名簿をすべて消去</button>
-                </div>
-                <div id="student-db-list" class="space-y-2 max-h-48 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                    <!-- 名簿一覧 -->
-                </div>
-            </div>
-
-            <!-- 2. 全体おかわり記録 -->
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-list-ul mr-2"></i>全体おかわり記録一覧</h3>
-                    <button onclick="clearAdminLogs()" class="text-xs text-red-500 font-bold">全記録を消去</button>
-                </div>
-                <div id="admin-log-list" class="space-y-2 max-h-48 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                    <!-- 記録ログ -->
-                </div>
+            <div id="student-db-list" class="space-y-2 max-h-64 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                <!-- 名簿 -->
             </div>
         </div>
     </main>
 
-    <!-- 【中央ポップアップ】利用者詳細プロフィールモーダル -->
-    <div id="student-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div id="student-detail-card" class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl transform scale-95 transition-all duration-200">
-            <h3 class="text-lg font-bold text-slate-800 flex items-center border-b pb-2"><i class="fa-solid fa-id-card text-slate-700 mr-2"></i>利用者詳細プロフィール</h3>
-            
-            <!-- 基本プロフィール -->
-            <div class="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-100 text-left text-xs">
-                <div class="flex justify-between">
-                    <span class="text-slate-400">管理番号:</span>
-                    <strong id="detail-qr-num" class="text-slate-800 font-mono"></strong>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">号車:</span>
-                    <strong id="detail-gousha" class="text-slate-800"></strong>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">名前:</span>
-                    <strong id="detail-name" class="text-slate-800 text-sm"></strong>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">累計おかわり回数:</span>
-                    <span class="font-bold text-emerald-600 text-sm"><span id="detail-count">0</span> 回</span>
-                </div>
-            </div>
-
-            <!-- 個人の細かい利用履歴リスト -->
-            <div class="space-y-1 text-left">
-                <p class="text-[10px] font-bold text-slate-500 flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1"></i>この利用者のスキャン履歴</p>
-                <div id="detail-log-list" class="border rounded-xl p-2 max-h-24 overflow-y-auto bg-slate-50 text-[10px] space-y-1 font-mono text-slate-600">
-                    <!-- 履歴のタイムスタンプ -->
-                </div>
-            </div>
-
-            <!-- 操作ボタン -->
-            <div class="space-y-2 pt-2 border-t">
-                <button onclick="addRefillFromDetail()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1">
-                    <i class="fa-solid fa-plus"></i>
-                    <span>この生徒のおかわりを1回記録（打刻）する</span>
-                </button>
-                <div class="flex space-x-2">
-                    <button onclick="triggerEditFromDetail()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-xs transition-colors">修正</button>
-                    <button onclick="closeStudentDetailModal()" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 rounded-xl text-xs transition-colors">閉じる</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 利用者登録・修正モーダル -->
+    <!-- 名前・号車入力モーダル (スキャン時、または手動入力時に起動) -->
     <div id="admin-input-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <h3 id="modal-title" class="text-lg font-bold text-gray-800 flex items-center border-b pb-2"><i class="fa-solid fa-user-plus text-slate-700 mr-2"></i>名簿登録</h3>
-            <div class="bg-slate-50 p-2.5 rounded-lg text-xs">QRコード番号: <strong id="modal-qr-num" class="text-slate-800 ml-1"></strong></div>
+            <div class="bg-slate-50 p-2.5 rounded-lg text-xs">QRコード / 入力番号: <strong id="modal-qr-num" class="text-slate-800 ml-1"></strong></div>
             <div>
                 <label class="block text-xs font-bold text-gray-500 mb-1">号車</label>
                 <select id="input-gousha" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none">
@@ -163,30 +99,19 @@
     </div>
 
     <script>
-        // ★ ご提示いただいた新しいGASのデプロイIDに基づいたURLを組み込んでいます。
-        const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyU5kATRe7KuKnIm23BJGsuAVKUz6iPNNbTEx6eRHF7eOIOlTHY6clz9tJRMxE1szxc/exec";
-
         let videoStream = null;
         let animationFrameId = null;
         let isScanningPaused = false;
         let activeQrNum = null; 
         
         let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
-        let adminLogs = JSON.parse(localStorage.getItem('student_okawari_logs')) || [];
 
         window.onload = function() {
             startCamera();
-            renderAdminLogs();
             renderStudentDb();
-            const savedUrl = localStorage.getItem('gas_url');
-            if (savedUrl) {
-                document.getElementById('gas-url').value = savedUrl;
-            } else {
-                document.getElementById('gas-url').value = DEFAULT_GAS_URL;
-                localStorage.setItem('gas_url', DEFAULT_GAS_URL);
-            }
         };
 
+        // カメラ起動
         async function startCamera() {
             const video = document.getElementById('scanner-video');
             const container = document.getElementById('camera-container');
@@ -258,148 +183,48 @@
             animationFrameId = requestAnimationFrame(tick);
         }
 
+        // スキャン（または手動入力）データの処理
         function handleScannedData(scannedData) {
             isScanningPaused = true;
             if (navigator.vibrate) { navigator.vibrate(200); }
+            
             let qrNum = scannedData.trim();
             try {
                 const url = new URL(scannedData);
                 qrNum = url.searchParams.get('id') || url.searchParams.get('get') || scannedData.trim();
             } catch (e) {}
+
             activeQrNum = qrNum;
             const student = studentDb[qrNum];
 
             if (student) {
-                showStudentDetailModal(qrNum);
+                // すでに登録済みの場合 ➔ 修正モーダルを開く
+                openAdminInputModal(qrNum, true);
             } else {
+                // 登録がない場合 ➔ 新規登録モーダルを開く
                 openAdminInputModal(qrNum, false);
             }
         }
 
-        function showStudentDetailModal(qrNum) {
-            const student = studentDb[qrNum];
-            if (!student) return;
-
-            activeQrNum = qrNum;
-
-            document.getElementById('detail-qr-num').innerText = qrNum;
-            document.getElementById('detail-gousha').innerText = student.gousha;
-            document.getElementById('detail-name').innerText = student.name;
-
-            if (!student.logs) {
-                student.logs = [];
+        // 手動で管理番号を入力して検索・登録する処理
+        function submitManualNumber() {
+            const input = document.getElementById('manual-number-input');
+            const num = input.value.trim();
+            if (!num) {
+                alert("番号を入力してください。");
+                return;
             }
-
-            document.getElementById('detail-count').innerText = student.logs.length;
-
-            const logListEl = document.getElementById('detail-log-list');
-            logListEl.innerHTML = '';
-            
-            if (student.logs.length === 0) {
-                logListEl.innerHTML = `<p class="text-center py-2 text-slate-400">おかわり記録はありません</p>`;
-            } else {
-                student.logs.forEach(timeStr => {
-                    logListEl.innerHTML += `<p class="border-b border-slate-200/60 pb-1 py-0.5"><i class="fa-solid fa-check text-emerald-500 mr-1.5"></i>${timeStr}</p>`;
-                });
-            }
-
-            const modal = document.getElementById('student-detail-modal');
-            const card = document.getElementById('student-detail-card');
-            modal.classList.remove('hidden');
-            setTimeout(() => card.classList.remove('scale-95'), 10);
-            
-            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-slate-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
+            handleScannedData(num);
+            input.value = ''; // 入力欄をクリア
         }
 
-        function closeStudentDetailModal() {
-            document.getElementById('student-detail-modal').classList.add('hidden');
-            document.getElementById('student-detail-card').classList.add('scale-95');
-            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-emerald-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse";
-            isScanningPaused = false;
-            forceVideoPlay();
-        }
-
-        function addRefillFromDetail() {
-            const student = studentDb[activeQrNum];
-            if (!student) return;
-
-            if (confirm(`「${student.gousha} の ${student.name}」さんのおかわり記録を1回追加しますか？`)) {
-                recordRefill(activeQrNum, student.name, student.gousha);
-                showStudentDetailModal(activeQrNum);
-            }
-        }
-
-        function recordRefill(qrNum, name, gousha) {
-            const timeFullStr = new Date().toLocaleString('ja-JP');
-            const newLog = {
-                id: Date.now(),
-                qrNum: qrNum,
-                gousha: gousha,
-                name: name,
-                time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            };
-            adminLogs.unshift(newLog);
-            localStorage.setItem('student_okawari_logs', JSON.stringify(adminLogs));
-
-            if (studentDb[qrNum]) {
-                if (!studentDb[qrNum].logs) {
-                    studentDb[qrNum].logs = [];
-                }
-                studentDb[qrNum].logs.unshift(timeFullStr);
-                localStorage.setItem('student_db', JSON.stringify(studentDb));
-                renderStudentDb(); 
-            }
-
-            renderAdminLogs();
-
-            const gasUrl = localStorage.getItem('gas_url');
-            if (gasUrl) {
-                const sendUrl = `${gasUrl}?action=addLog&gousha=${encodeURIComponent(gousha)}&name=${encodeURIComponent(name)}&qrNum=${encodeURIComponent(qrNum)}&time=${encodeURIComponent(timeFullStr)}`;
-                fetch(sendUrl, { mode: 'no-cors' })
-                    .then(() => console.log("Google Sheetsへログを送信しました。"))
-                    .catch(err => console.error("Google Sheets送信エラー:", err));
-            }
-        }
-
-        function saveGasUrl() {
-            const urlInput = document.getElementById('gas-url').value.trim();
-            localStorage.setItem('gas_url', urlInput);
-            alert("GASのURLを端末に保存しました。");
-        }
-
-        function syncStudentDbFromSheets() {
-            const gasUrl = document.getElementById('gas-url').value.trim();
-            if (!gasUrl) { alert("GASのURLが入力されていません。"); return; }
-            const btn = document.getElementById('sync-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> 同期中...`;
-            btn.disabled = true;
-            const syncUrl = `${gasUrl}?action=getStudents`;
-            fetch(syncUrl)
-                .then(res => res.json())
-                .then(data => {
-                    studentDb = data;
-                    localStorage.setItem('student_db', JSON.stringify(studentDb));
-                    renderStudentDb();
-                    alert("スプレッドシートから名簿を同期しました！");
-                })
-                .catch(err => {
-                    console.error("同期失敗:", err);
-                    alert("スプレッドシートとの同期に失敗しました。\n・URLに間違いがないか\n・GASが正しく全員に公開デプロイされているか確認してください。");
-                })
-                .finally(() => { btn.innerHTML = originalText; btn.disabled = false; });
-        }
-
-        function triggerEditFromDetail() {
-            document.getElementById('student-detail-modal').classList.add('hidden');
-            openAdminInputModal(activeQrNum, true); 
-        }
-
+        // 入力モーダルの表示
         function openAdminInputModal(qrNum, isEdit = false) {
             document.getElementById('modal-qr-num').innerText = qrNum;
             const titleEl = document.getElementById('modal-title');
             const goushaSelect = document.getElementById('input-gousha');
             const nameInput = document.getElementById('input-name');
+
             if (isEdit) {
                 titleEl.innerHTML = `<i class="fa-solid fa-user-pen text-slate-700 mr-2"></i>登録情報の修正`;
                 goushaSelect.value = studentDb[qrNum].gousha;
@@ -409,29 +234,25 @@
                 goushaSelect.value = "1号車";
                 nameInput.value = '';
             }
+
             const modal = document.getElementById('admin-input-modal');
             modal.classList.remove('hidden');
             nameInput.focus();
         }
 
+        // 登録・修正を保存する処理
         function submitAdminInput() {
             const gousha = document.getElementById('input-gousha').value;
             const name = document.getElementById('input-name').value.trim();
             if (!name) { alert("名前を入力してください。"); return; }
             
-            if (!studentDb[activeQrNum]) {
-                studentDb[activeQrNum] = { name: name, gousha: gousha, logs: [] };
-            } else {
-                studentDb[activeQrNum].name = name;
-                studentDb[activeQrNum].gousha = gousha;
-            }
-            
+            studentDb[activeQrNum] = { name: name, gousha: gousha };
             localStorage.setItem('student_db', JSON.stringify(studentDb));
 
             renderStudentDb();
             closeAdminInputModal();
-            
-            showStudentDetailModal(activeQrNum);
+            isScanningPaused = false;
+            forceVideoPlay();
         }
 
         function cancelAdminInput() {
@@ -444,74 +265,24 @@
             document.getElementById('admin-input-modal').classList.add('hidden');
         }
 
-        function renderAdminLogs() {
-            const listEl = document.getElementById('admin-log-list');
-            listEl.innerHTML = '';
-            if (adminLogs.length === 0) {
-                listEl.innerHTML = `<p class="text-center py-6 text-slate-400">現在、おかわりした記録はありません</p>`;
-                return;
-            }
-            adminLogs.forEach(log => {
-                listEl.innerHTML += `
-                    <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
-                        <div class="flex items-center space-x-3">
-                            <span class="bg-emerald-50 text-emerald-700 p-2 rounded-lg text-sm font-bold">
-                                <i class="fa-solid fa-circle-check"></i>
-                            </span>
-                            <div>
-                                <div class="flex items-center space-x-2">
-                                    <span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${log.gousha}</span>
-                                    <span class="font-bold text-slate-800">${log.name}</span>
-                                </div>
-                                <p class="text-[9px] text-slate-400 mt-0.5">QR: ${log.qrNum} のおかわりを記録しました</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-[9px] text-slate-400 font-mono">${log.time}</span>
-                            <button onclick="deleteSingleLog(${log.id})" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function deleteSingleLog(logId) {
-            const logIndex = adminLogs.findIndex(log => log.id === logId);
-            if (logIndex !== -1) {
-                const log = adminLogs[logIndex];
-                if (confirm(`「${log.gousha} の ${log.name}」さんのこのおかわり記録を削除しますか？`)) {
-                    
-                    const student = studentDb[log.qrNum];
-                    if (student && student.logs) {
-                        const idx = student.logs.findIndex(t => t.includes(log.time) || t.includes(new Date(logId).toLocaleDateString()));
-                        if (idx !== -1) {
-                            student.logs.splice(idx, 1);
-                        } else {
-                            student.logs.shift();
-                        }
-                        localStorage.setItem('student_db', JSON.stringify(studentDb));
-                        renderStudentDb();
-                    }
-
-                    adminLogs.splice(logIndex, 1);
-                    localStorage.setItem('student_okawari_logs', JSON.stringify(adminLogs));
-                    renderAdminLogs();
-                }
-            }
-        }
-
+        // 登録名簿一覧の描画
         function renderStudentDb() {
             const listEl = document.getElementById('student-db-list');
             listEl.innerHTML = '';
             const keys = Object.keys(studentDb);
+
             if (keys.length === 0) {
                 listEl.innerHTML = `<p class="text-center py-6 text-slate-400">登録されている生徒名簿はありません</p>`;
                 return;
             }
+
+            // 番号順（昇順）にソートして表示
+            keys.sort((a, b) => {
+                return (parseInt(a) || 0) - (parseInt(b) || 0);
+            });
+
             keys.forEach(qrNum => {
                 const s = studentDb[qrNum];
-                const count = s.logs ? s.logs.length : 0;
                 listEl.innerHTML += `
                     <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
                         <div class="flex items-center space-x-3">
@@ -519,12 +290,11 @@
                             <div>
                                 <span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${s.gousha}</span>
                                 <span class="font-bold text-slate-800 ml-1.5">${s.name}</span>
-                                <span class="text-[10px] text-emerald-600 font-bold ml-2">(${count}回)</span>
                             </div>
                         </div>
                         <div class="flex space-x-1">
-                            <button onclick="showStudentDetailModal('${qrNum}')" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2 py-1 rounded border border-slate-200 bg-slate-50">
-                                🔍詳細
+                            <button onclick="openAdminInputModal('${qrNum}', true)" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2.5 py-1 rounded border border-slate-200 bg-slate-50">
+                                ✏️修正
                             </button>
                             <button onclick="deleteStudent('${qrNum}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">
                                 <i class="fa-solid fa-trash-can"></i>
@@ -539,21 +309,6 @@
             if (confirm(`「${s.gousha} の ${s.name}」さんを名簿から削除しますか？`)) {
                 delete studentDb[qrNum];
                 localStorage.setItem('student_db', JSON.stringify(studentDb));
-                renderStudentDb();
-            }
-        }
-
-        function clearAdminLogs() {
-            if (confirm("これまでの「おかわり記録一覧」をすべて消去しますか？\n（生徒ごとの累計回数もすべてリセットされます）")) {
-                adminLogs = [];
-                localStorage.removeItem('student_okawari_logs');
-                
-                Object.keys(studentDb).forEach(key => {
-                    studentDb[key].logs = [];
-                });
-                localStorage.setItem('student_db', JSON.stringify(studentDb));
-
-                renderAdminLogs();
                 renderStudentDb();
             }
         }
