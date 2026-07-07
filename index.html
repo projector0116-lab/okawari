@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>給食おかわり名簿登録システム</title>
+    <title>給食おかわり名簿登録システム（座席表完全一致・自動入力）</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
@@ -11,7 +11,7 @@
     <!-- jsQR (QRコード読み取りライブラリ) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-2xl mx-auto shadow-2xl bg-white pb-8">
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-3xl mx-auto shadow-2xl bg-white pb-8">
 
     <!-- ヘッダー -->
     <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
@@ -19,30 +19,38 @@
             <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
             <div>
                 <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・名簿管理</h1>
-                <p class="text-[9px] md:text-xs text-slate-400">QRスキャンまたは手動入力で名簿の登録・確認を行います</p>
+                <p class="text-[9px] md:text-xs text-slate-400">QRスキャンまたは座席タップで名簿の登録・確認を行います</p>
             </div>
         </div>
         <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-full font-bold border border-slate-600 flex items-center">
-            <i class="fa-solid fa-plane-slash mr-1.5 text-amber-400"></i>オフライン専用
+            1年3組
         </span>
     </header>
 
     <main class="p-4 md:p-6 space-y-5 flex-grow">
 
-        <!-- 1. カメラ映像表示エリア (正方形) -->
-        <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-md mx-auto flex items-center justify-center border border-slate-300 shadow-md">
+        <!-- 新規登録案内バナー (未登録QRスキャン時に点滅表示) -->
+        <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center max-w-md mx-auto">
+            <span>
+                <i class="fa-solid fa-circle-info mr-1"></i> No.<strong id="pending-qr-label" class="underline"></strong> は未登録です。座席表の空席（灰色の席）を押して登録してください。
+            </span>
+            <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded px-2 py-0.5 ml-2">キャンセル</button>
+        </div>
+
+        <!-- カメラ映像表示エリア -->
+        <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-xs mx-auto flex items-center justify-center border border-gray-200 shadow-md">
             <div id="camera-loading" class="text-white text-center p-4">
-                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-slate-400"></i>
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
                 <p class="text-sm">カメラを起動しています...</p>
             </div>
             <div id="camera-container" class="hidden w-full h-full relative">
                 <video id="scanner-video" class="w-full h-full object-cover" playsinline></video>
-                <div id="scan-frame" class="absolute inset-0 border-4 border-slate-500 m-12 md:m-16 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
+                <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
             </div>
         </div>
 
-        <!-- カメラ再起動 ＆ 手動入力エリア -->
-        <div class="max-w-md mx-auto w-full space-y-4">
+        <!-- カメラ再起動＆手動番号入力 -->
+        <div class="max-w-md mx-auto w-full space-y-3">
             <div class="text-center">
                 <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
                     <i class="fa-solid fa-arrows-rotate"></i>
@@ -50,48 +58,132 @@
                 </button>
             </div>
 
-            <!-- ★【新機能】出席番号・管理番号の手動入力欄 -->
-            <div class="bg-slate-50 border border-slate-200 p-4 rounded-2xl shadow-sm space-y-2">
-                <label class="block text-xs font-bold text-slate-600"><i class="fa-solid fa-keyboard mr-1 text-slate-500"></i> 番号を手動で入力して検索 / 登録</label>
+            <!-- 手動番号入力欄 -->
+            <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-sm space-y-1.5">
+                <label class="block text-[10px] font-bold text-slate-600"><i class="fa-solid fa-keyboard mr-1 text-slate-500"></i> 番号を手動で入力して検索 / 登録</label>
                 <div class="flex space-x-2">
-                    <input type="text" id="manual-number-input" onkeydown="if(event.key === 'Enter') submitManualNumber()" placeholder="例：101（出席番号や管理番号）" class="flex-grow border border-gray-300 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-slate-500">
-                    <button onclick="submitManualNumber()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition-colors shadow-sm">
+                    <input type="text" id="manual-number-input" onkeydown="if(event.key === 'Enter') submitManualNumber()" placeholder="例：15（出席番号や管理番号）" class="flex-grow border border-gray-300 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-slate-500">
+                    <button onclick="submitManualNumber()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg text-xs transition-colors shadow-sm">
                         検索 / 登録
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- 2. 登録名簿一覧 -->
-        <div class="space-y-3 max-w-md mx-auto w-full pt-2">
-            <div class="flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-600 flex items-center"><i class="fa-solid fa-address-book mr-2"></i>登録名簿一覧</h3>
-                <button onclick="clearStudentDb()" class="text-xs text-red-500 font-bold">名簿をすべて消去</button>
+        <!-- アニメーション付きメイン座席表トグラーボタン -->
+        <div class="text-center max-w-md mx-auto w-full pt-2">
+            <button onclick="toggleMainSeatingChart()" id="toggle-seating-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-6 rounded-2xl shadow-md transition-all active:scale-95 text-sm flex items-center justify-center space-x-2">
+                <i id="toggle-seating-icon" class="fa-solid fa-circle-chevron-down"></i>
+                <span id="toggle-seating-text">座席表を表示する</span>
+            </button>
+        </div>
+
+        <!-- 3. 教室座席表（アニメーション付き開閉用ラッパー） -->
+        <div id="main-seating-wrapper" class="hidden overflow-hidden transition-all duration-500 ease-in-out max-h-0 opacity-0 space-y-4">
+            <h2 class="text-xs font-bold text-slate-400 text-center">ロッカー側 (後方)</h2>
+
+            <!-- A4用紙と同じレイアウト -->
+            <div class="grid grid-cols-3 gap-3 md:gap-4 max-w-xl mx-auto w-full">
+                <div id="block-left" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
+                <div id="block-middle" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
+                <div id="block-right" class="grid grid-cols-2 gap-2"></div>
             </div>
-            <div id="student-db-list" class="space-y-2 max-h-64 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                <!-- 名簿 -->
+
+            <!-- 黒板表示板 -->
+            <div class="bg-emerald-800 border-2 border-emerald-950 text-white font-bold py-2 rounded-xl text-center text-sm tracking-widest max-w-xl mx-auto shadow flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-chalkboard"></i>
+                <span>黒 板 （下 の 方 ・ 前 方）</span>
             </div>
+        </div>
+
+        <!-- コントロールボタン -->
+        <div class="max-w-md mx-auto w-full pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-center text-xs">
+            <button onclick="resetToDefault1Year3Class()" class="text-emerald-600 font-bold hover:text-emerald-800 flex items-center space-x-1">
+                <i class="fa-solid fa-rotate-left"></i><span>名簿を「1年3組」の初期状態に戻す</span>
+            </button>
+            <button onclick="clearStudentDb()" class="text-red-500 font-bold hover:text-red-700 flex items-center space-x-1">
+                <i class="fa-solid fa-trash-can"></i><span>名簿をすべて消去（全員空席に）</span>
+            </button>
         </div>
     </main>
 
-    <!-- 名前・号車入力モーダル (スキャン時、または手動入力時に起動) -->
-    <div id="admin-input-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-            <h3 id="modal-title" class="text-lg font-bold text-gray-800 flex items-center border-b pb-2"><i class="fa-solid fa-user-plus text-slate-700 mr-2"></i>名簿登録</h3>
-            <div class="bg-slate-50 p-2.5 rounded-lg text-xs">QRコード / 入力番号: <strong id="modal-qr-num" class="text-slate-800 ml-1"></strong></div>
-            <div>
-                <label class="block text-xs font-bold text-gray-500 mb-1">号車</label>
-                <select id="input-gousha" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none">
-                    <option value="1号車">1号車</option>
-                    <option value="2号車">2号車</option>
-                    <option value="3号車">3号車</option>
-                </select>
+    <!-- 【中央ポップアップ】登録済み生徒情報の確認＆削除モーダル -->
+    <div id="student-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div id="student-detail-card" class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center transform scale-95 transition-all duration-200">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center border-b pb-2"><i class="fa-solid fa-id-card text-slate-700 mr-2"></i>登録情報の確認</h3>
+            
+            <div class="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100 text-left text-xs">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">出席番号:</span>
+                    <strong id="detail-qr-num" class="text-slate-800 font-mono text-sm"></strong>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">座席位置:</span>
+                    <strong id="detail-seat" class="text-slate-800"></strong>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">名前:</span>
+                    <strong id="detail-name" class="text-slate-800 text-base"></strong>
+                </div>
             </div>
+
+            <!-- 操作ボタン -->
+            <div class="flex space-x-3 pt-2 border-t">
+                <button onclick="deleteStudentFromDetail()" class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    データを削除
+                </button>
+                <button onclick="closeStudentDetailModal()" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 利用者登録モーダル (自動入力機能搭載) -->
+    <div id="admin-input-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <h3 id="modal-title" class="text-lg font-bold text-gray-800 flex items-center border-b pb-2"><i class="fa-solid fa-chair text-slate-700 mr-2"></i>座席の登録</h3>
+            
+            <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg text-xs">
+                <div>出席番号: <strong id="modal-qr-num" class="text-slate-800"></strong></div>
+                <div>座席位置: <strong id="modal-seat-label" class="text-slate-800"></strong></div>
+            </div>
+
+            <!-- 名前入力 -->
             <div>
                 <label class="block text-xs font-bold text-gray-500 mb-1">名前</label>
-                <input type="text" id="input-name" placeholder="例：山田 太郎" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none">
+                <input type="text" id="input-name" placeholder="例：山田 太郎" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-slate-500">
             </div>
-            <div class="flex space-x-3 pt-2">
+
+            <!-- ★【新機能】名前と席位置を座席表から選ぶ連携パネル -->
+            <div class="space-y-2">
+                <button type="button" onclick="toggleModalSeatingChart()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs transition-colors border border-slate-200 flex items-center justify-center space-x-1">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    <span>座席表から名前を選ぶ（自動入力）</span>
+                </button>
+                
+                <!-- 折りたたみ式ミニ座席表コンテナ (アニメーション開閉) -->
+                <div id="modal-seating-container" class="hidden overflow-hidden transition-all duration-500 ease-in-out max-h-0 opacity-0 border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-3">
+                    <p class="text-[10px] font-bold text-slate-500 text-center">席を選んで下の「使用する」ボタンを押してください</p>
+                    
+                    <!-- 1年3組の縮小座席グリッド -->
+                    <div class="grid grid-cols-3 gap-2 text-[9px] max-w-sm mx-auto">
+                        <div id="modal-block-left" class="grid grid-cols-2 gap-1 border-r pr-1 border-slate-200"></div>
+                        <div id="modal-block-middle" class="grid grid-cols-2 gap-1 border-r pr-1 border-slate-200"></div>
+                        <div id="modal-block-right" class="grid grid-cols-2 gap-1"></div>
+                    </div>
+                    
+                    <!-- 選択確定エリア -->
+                    <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200">
+                        <span class="text-[10px] text-slate-500">選択中: <strong id="selected-modal-student-name" class="text-xs text-slate-800 font-bold">なし</strong></span>
+                        <button type="button" id="use-selected-student-btn" onclick="useSelectedModalStudent()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-4 rounded-lg text-xs transition-colors disabled:opacity-40 disabled:pointer-events-none" disabled>
+                            使用する
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-2 border-t">
                 <button onclick="cancelAdminInput()" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm">キャンセル</button>
                 <button onclick="submitAdminInput()" class="flex-1 bg-slate-700 text-white font-bold py-2.5 rounded-xl text-sm">登録する</button>
             </div>
@@ -99,19 +191,450 @@
     </div>
 
     <script>
+        // 1年3組の名簿データ（上がRow 1、下がRow 6）
+        const default1Year3ClassDb = {
+            "1": { "name": "東 美宙", "col": 2, "row": 2 },
+            "2": { "name": "伊藤 勇翔", "col": 5, "row": 6 },
+            "3": { "name": "岩月 杏奈", "col": 4, "row": 6 },
+            "4": { "name": "大沼結希乃", "col": 6, "row": 6 },
+            "5": { "name": "大和 颯花", "col": 3, "row": 3 },
+            "6": { "name": "海津 充葉", "col": 5, "row": 3 },
+            "7": { "name": "垣野晏司朗", "col": 3, "row": 6 },
+            "8": { "name": "河野 匠真", "col": 2, "row": 3 },
+            "9": { "name": "河野 莉子", "col": 2, "row": 6 },
+            "10": { "name": "児玉 璃恩", "col": 1, "row": 4 },
+            "11": { "name": "坂口 壮太", "col": 5, "row": 2 },
+            "12": { "name": "杉山 知穂", "col": 5, "row": 5 },
+            "13": { "name": "高橋 魁浬", "col": 6, "row": 3 },
+            "14": { "name": "竹上 来瞳", "col": 1, "row": 5 },
+            "15": { "name": "栃川 優梨", "col": 3, "row": 5 },
+            "16": { "name": "中村 咲彩", "col": 4, "row": 4 },
+            "17": { "name": "鍋本 美歩", "col": 3, "row": 1 },
+            "18": { "name": "古岡 大空", "col": 1, "row": 2 },
+            "19": { "name": "松原 彪牙", "col": 4, "row": 5 },
+            "20": { "name": "松村 紗良", "col": 4, "row": 2 },
+            "21": { "name": "三原 知佳", "col": 6, "row": 4 },
+            "22": { "name": "三輪 亮太", "col": 4, "row": 3 },
+            "23": { "name": "森 花那", "col": 2, "row": 4 },
+            "24": { "name": "森 晴彌", "col": 4, "row": 1 },
+            "25": { "name": "安井 新", "col": 5, "row": 4 },
+            "26": { "name": "安江 稀音", "col": 6, "row": 5 },
+            "27": { "name": "矢田 崚雅", "col": 2, "row": 5 },
+            "28": { "name": "山田 基貴", "col": 1, "row": 6 },
+            "29": { "name": "山本 葵", "col": 1, "row": 3 },
+            "30": { "name": "山本いつ菜", "col": 6, "row": 2 },
+            "31": { "name": "横田 岳", "col": 3, "row": 4 },
+            "32": { "name": "劉 軒征", "col": 3, "row": 2 }
+        };
+
         let videoStream = null;
         let animationFrameId = null;
         let isScanningPaused = false;
-        let activeQrNum = null; 
         
-        let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
+        let activeQrNum = null; 
+        let pendingQrNum = null; 
+        let activeRow = null;   
+        let activeCol = null;   
+
+        // 状態管理用
+        let isSeatingChartVisible = false;
+        let isModalSeatingVisible = false;
+        let tempSelectedStudent = null; // ポップアップ座席表で選択された一時データ
+        
+        let studentDb = JSON.parse(localStorage.getItem('student_db')) || default1Year3ClassDb;
 
         window.onload = function() {
             startCamera();
-            renderStudentDb();
+            renderSeatingChart();
         };
 
-        // カメラ起動
+        // メイン座席表の表示切り替え（アコーディオンアニメーション付き）
+        function toggleMainSeatingChart() {
+            const wrapper = document.getElementById('main-seating-wrapper');
+            const text = document.getElementById('toggle-seating-text');
+            const icon = document.getElementById('toggle-seating-icon');
+            
+            isSeatingChartVisible = !isSeatingChartVisible;
+            
+            if (isSeatingChartVisible) {
+                wrapper.classList.remove('hidden');
+                setTimeout(() => {
+                    wrapper.style.maxHeight = '1500px';
+                    wrapper.style.opacity = '1';
+                }, 10);
+                text.innerText = "座席表を非表示にする";
+                icon.className = "fa-solid fa-circle-chevron-up";
+            } else {
+                wrapper.style.maxHeight = '0px';
+                wrapper.style.opacity = '0';
+                setTimeout(() => {
+                    if (!isSeatingChartVisible) {
+                        wrapper.classList.add('hidden');
+                    }
+                }, 500);
+                text.innerText = "座席表を表示する";
+                icon.className = "fa-solid fa-circle-chevron-down";
+            }
+        }
+
+        // ポップアップ座席表の表示切り替え
+        function toggleModalSeatingChart() {
+            const container = document.getElementById('modal-seating-container');
+            isModalSeatingVisible = !isModalSeatingVisible;
+            
+            if (isModalSeatingVisible) {
+                container.classList.remove('hidden');
+                renderModalSeatingChart(); // ミニ座席表の組み立て
+                setTimeout(() => {
+                    container.style.maxHeight = '1000px';
+                    container.style.opacity = '1';
+                }, 10);
+            } else {
+                container.style.maxHeight = '0px';
+                container.style.opacity = '0';
+                setTimeout(() => {
+                    if (!isModalSeatingVisible) {
+                        container.classList.add('hidden');
+                    }
+                }, 500);
+            }
+        }
+
+        // 教室座席表（6列×6行）を描画する
+        function renderSeatingChart() {
+            renderBlock('block-left', [1, 2]);
+            renderBlock('block-middle', [3, 4]);
+            renderBlock('block-right', [5, 6]);
+        }
+
+        function renderBlock(elementId, cols) {
+            const blockEl = document.getElementById(elementId);
+            blockEl.innerHTML = '';
+            
+            for (let row = 1; row <= 6; row++) {
+                cols.forEach(col => {
+                    blockEl.appendChild(createSeatElement(row, col));
+                });
+            }
+        }
+
+        // 机（座席）を生成する処理（緑色カードマークを右上に搭載）
+        function createSeatElement(row, col) {
+            let foundNum = null;
+            Object.keys(studentDb).forEach(num => {
+                if (studentDb[num].row === row && studentDb[num].col === col) {
+                    foundNum = num;
+                }
+            });
+
+            const btn = document.createElement('button');
+            btn.className = "w-full aspect-[2/1] rounded-lg border text-center transition-all active:scale-95 text-xs shadow-sm flex flex-col justify-center items-center p-1 overflow-hidden relative";
+
+            if (foundNum) {
+                const s = studentDb[foundNum];
+                btn.classList.add("bg-emerald-50", "border-emerald-300", "text-emerald-950", "hover:bg-emerald-100/80");
+                btn.innerHTML = `
+                    <!-- ★【新機能】登録済み座席の右上に配置される「緑色のカードマーク」 -->
+                    <span class="absolute top-1 right-1 text-emerald-500 text-[9px] leading-none">
+                        <i class="fa-solid fa-address-card"></i>
+                    </span>
+                    <span class="text-[8px] md:text-[9px] text-emerald-600 font-mono font-bold leading-none">No.${foundNum}</span>
+                    <span class="font-extrabold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full">${s.name}</span>
+                `;
+                btn.onclick = () => showStudentInfo(foundNum);
+            } else {
+                btn.classList.add("bg-white", "border-dashed", "border-gray-300", "text-gray-400", "hover:bg-gray-50/50");
+                const displayRow = 7 - row;
+                btn.innerHTML = `
+                    <span class="text-[8px] text-gray-300 font-mono leading-none">${col}列-前${displayRow}行</span>
+                    <span class="text-[10px] text-gray-300 font-bold mt-0.5">空席</span>
+                `;
+                btn.onclick = () => handleSeatClick(row, col);
+            }
+
+            return btn;
+        }
+
+        // 【新機能】ポップアップ用ミニ座席表（1年3組のデフォルトデータ）の描画
+        function renderModalSeatingChart() {
+            renderModalBlock('modal-block-left', [1, 2]);
+            renderModalBlock('modal-block-middle', [3, 4]);
+            renderModalBlock('modal-block-right', [5, 6]);
+            
+            // 選択状態のリセット
+            tempSelectedStudent = null;
+            document.getElementById('selected-modal-student-name').innerText = "なし";
+            document.getElementById('use-selected-student-btn').disabled = true;
+        }
+
+        function renderModalBlock(elementId, cols) {
+            const blockEl = document.getElementById(elementId);
+            blockEl.innerHTML = '';
+            for (let row = 1; row <= 6; row++) {
+                cols.forEach(col => {
+                    blockEl.appendChild(createModalSeatButton(row, col));
+                });
+            }
+        }
+
+        // ポップアップ座席表用個々のボタン生成（お名前自動補完用）
+        function createModalSeatButton(row, col) {
+            // 初期状態名簿（1年3組の生徒）の座標一致するものを検索
+            let targetKey = null;
+            Object.keys(default1Year3ClassDb).forEach(num => {
+                if (default1Year3ClassDb[num].row === row && default1Year3ClassDb[num].col === col) {
+                    targetKey = num;
+                }
+            });
+
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.className = "w-full aspect-[2/1] rounded-md border text-[9px] font-bold text-center flex items-center justify-center p-1 transition-all overflow-hidden";
+
+            if (targetKey) {
+                const s = default1Year3ClassDb[targetKey];
+                btn.innerText = s.name;
+                btn.classList.add("bg-white", "border-slate-300", "text-slate-700", "hover:bg-slate-100");
+                
+                // ボタン識別用のIDまたはデータ属性
+                btn.id = `modal-seat-btn-${row}-${col}`;
+
+                btn.onclick = () => {
+                    // 全席選択枠を白にリセット
+                    document.querySelectorAll('[id^="modal-seat-btn-"]').forEach(el => {
+                        el.classList.remove("border-emerald-600", "bg-emerald-50", "text-emerald-950");
+                    });
+                    
+                    // 選択席をハイライト
+                    btn.classList.add("border-emerald-600", "bg-emerald-50", "text-emerald-950");
+
+                    // 選択された学生データを一時格納
+                    tempSelectedStudent = {
+                        name: s.name,
+                        row: row,
+                        col: col
+                    };
+                    document.getElementById('selected-modal-student-name').innerText = s.name;
+                    document.getElementById('use-selected-student-btn').disabled = false;
+                };
+            } else {
+                btn.innerText = "空席";
+                btn.classList.add("bg-slate-100", "border-slate-200", "text-slate-300", "pointer-events-none");
+            }
+            return btn;
+        }
+
+        // 選択した生徒情報を適用（フォーム自動入力）
+        function useSelectedModalStudent() {
+            if (!tempSelectedStudent) return;
+
+            // 名前を代入
+            document.getElementById('input-name').value = tempSelectedStudent.name;
+
+            // 座席を更新
+            activeRow = tempSelectedStudent.row;
+            activeCol = tempSelectedStudent.col;
+            const displayRow = 7 - activeRow;
+            document.getElementById('modal-seat-label').innerText = `${activeCol}列目 - 前から${displayRow}行目`;
+
+            // モーダル座席表を折りたたむ
+            toggleModalSeatingChart();
+        }
+
+        function getStudentAtSeat(row, col) {
+            return Object.entries(studentDb).find(([qrNum, student]) => student.row === row && student.col === col);
+        }
+
+        function handleSeatClick(row, col) {
+            if (pendingQrNum) {
+                activeRow = row;
+                activeCol = col;
+                openAdminInputModal(pendingQrNum, false, row, col);
+            } else {
+                const qrNum = prompt("この席に登録する【出席番号 / 管理番号】を入力してください：");
+                if (qrNum && qrNum.trim() !== "") {
+                    const cleanedNum = qrNum.trim();
+                    if (studentDb[cleanedNum]) {
+                        alert(`その番号（No.${cleanedNum}）は、すでに別の席で登録されています。`);
+                        return;
+                    }
+                    activeRow = row;
+                    activeCol = col;
+                    openAdminInputModal(cleanedNum, false, row, col);
+                }
+            }
+        }
+
+        function handleScannedData(scannedData) {
+            isScanningPaused = true;
+            if (navigator.vibrate) { navigator.vibrate(200); }
+            
+            let qrNum = scannedData.trim();
+            try {
+                const url = new URL(scannedData);
+                qrNum = url.searchParams.get('id') || url.searchParams.get('get') || scannedData.trim();
+            } catch (e) {}
+
+            activeQrNum = qrNum;
+            const student = studentDb[qrNum];
+
+            if (student) {
+                showStudentInfo(qrNum);
+            } else {
+                openAdminInputModal(qrNum, false);
+            }
+        }
+
+        function showStudentInfo(qrNum) {
+            const student = studentDb[qrNum];
+            if (!student) return;
+
+            activeQrNum = qrNum;
+
+            document.getElementById('detail-qr-num').innerText = qrNum;
+            const displayRow = 7 - student.row;
+            document.getElementById('detail-seat').innerText = `${student.col}列目 - 前から${displayRow}行目`;
+            document.getElementById('detail-name').innerText = student.name;
+
+            const modal = document.getElementById('student-detail-modal');
+            const card = document.getElementById('student-detail-card');
+            modal.classList.remove('hidden');
+            setTimeout(() => card.classList.remove('scale-95'), 10);
+            
+            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-slate-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse";
+        }
+
+        function closeStudentDetailModal() {
+            document.getElementById('student-detail-modal').classList.add('hidden');
+            document.getElementById('student-detail-card').classList.add('scale-95');
+            document.getElementById('scan-frame').className = "absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse";
+            isScanningPaused = false;
+            forceVideoPlay();
+        }
+
+        function deleteStudentFromDetail() {
+            const student = studentDb[activeQrNum];
+            if (!student) return;
+
+            if (confirm(`本当に「${student.name}」さんの登録データを削除しますか？\n（この席は空席になります）`)) {
+                delete studentDb[activeQrNum];
+                localStorage.setItem('student_db', JSON.stringify(studentDb));
+                renderSeatingChart();
+                closeStudentDetailModal();
+            }
+        }
+
+        function cancelPendingRegistration() {
+            pendingQrNum = null;
+            document.getElementById('pending-banner').classList.add('hidden');
+            isScanningPaused = false;
+        }
+
+        function submitManualNumber() {
+            const input = document.getElementById('manual-number-input');
+            const num = input.value.trim();
+            if (!num) {
+                alert("番号を入力してください。");
+                return;
+            }
+            handleScannedData(num);
+            input.value = ''; 
+        }
+
+        function openAdminInputModal(qrNum, isEdit = false, row = null, col = null) {
+            document.getElementById('modal-qr-num').innerText = qrNum;
+            
+            const titleEl = document.getElementById('modal-title');
+            const nameInput = document.getElementById('input-name');
+
+            // ミニ座席表の初期化
+            isModalSeatingVisible = false;
+            const seatingContainer = document.getElementById('modal-seating-container');
+            seatingContainer.classList.add('hidden');
+            seatingContainer.style.maxHeight = '0px';
+            seatingContainer.style.opacity = '0';
+
+            if (row && col) {
+                activeRow = row;
+                activeCol = col;
+                const displayRow = 7 - row;
+                document.getElementById('modal-seat-label').innerText = `${col}列目 - 前から${displayRow}行目`;
+            } else {
+                activeRow = null;
+                activeCol = null;
+                document.getElementById('modal-seat-label').innerText = "未決定 (座席表から選ぶ)";
+            }
+
+            if (isEdit) {
+                titleEl.innerHTML = `<i class="fa-solid fa-user-pen text-slate-700 mr-2"></i>登録情報の修正`;
+                nameInput.value = studentDb[qrNum].name;
+                activeRow = studentDb[qrNum].row;
+                activeCol = studentDb[qrNum].col;
+                const displayRow = 7 - activeRow;
+                document.getElementById('modal-seat-label').innerText = `${activeCol}列目 - 前から${displayRow}行目`;
+            } else {
+                titleEl.innerHTML = `<i class="fa-solid fa-user-plus text-slate-700 mr-2"></i>座席の新規登録`;
+                nameInput.value = '';
+            }
+
+            const modal = document.getElementById('admin-input-modal');
+            modal.classList.remove('hidden');
+            nameInput.focus();
+        }
+
+        function submitAdminInput() {
+            const name = document.getElementById('input-name').value.trim();
+            if (!name) { alert("名前を入力してください。"); return; }
+            if (activeRow === null || activeCol === null) { alert("座席の位置を座席表から選択してください。"); return; }
+            
+            studentDb[pendingQrNum || activeQrNum] = {
+                name: name,
+                col: activeCol,
+                row: activeRow,
+                logs: []
+            };
+            localStorage.setItem('student_db', JSON.stringify(studentDb));
+
+            pendingQrNum = null;
+            document.getElementById('pending-banner').classList.add('hidden');
+
+            renderSeatingChart();
+            closeAdminInputModal();
+            isScanningPaused = false;
+            
+            showStudentInfo(activeQrNum);
+        }
+
+        function cancelAdminInput() {
+            closeAdminInputModal();
+            isScanningPaused = false;
+            forceVideoPlay();
+        }
+
+        function closeAdminInputModal() {
+            document.getElementById('admin-input-modal').classList.add('hidden');
+        }
+
+        function resetToDefault1Year3Class() {
+            if (confirm("名簿データを最初の「1年3組」のオリジナル配置（上が鍋本さん・下が山田さん・黒板が下側）にリセットしますか？")) {
+                studentDb = JSON.parse(JSON.stringify(default1Year3ClassDb));
+                localStorage.setItem('student_db', JSON.stringify(studentDb));
+                renderSeatingChart();
+                cancelPendingRegistration();
+                alert("1年3組の初期座席に復元しました！");
+            }
+        }
+
+        function clearStudentDb() {
+            if (confirm("登録されている「すべての座席名簿」を完全に消去しますか？\n（すべて白紙の空席になります）")) {
+                studentDb = {};
+                localStorage.removeItem('student_db');
+                renderSeatingChart();
+                cancelPendingRegistration();
+            }
+        }
+
+        /* --- カメラ制御 --- */
         async function startCamera() {
             const video = document.getElementById('scanner-video');
             const container = document.getElementById('camera-container');
@@ -161,163 +684,6 @@
             const video = document.getElementById('scanner-video');
             if (video && video.paused && videoStream) {
                 video.play().catch(e => console.warn("再生再開エラー:", e));
-            }
-        }
-
-        const canvasElement = document.createElement('canvas');
-        const canvas = canvasElement.getContext('2d');
-
-        function tick() {
-            if (!isScanningPaused) {
-                const video = document.getElementById('scanner-video');
-                if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    canvasElement.height = video.videoHeight;
-                    canvasElement.width = video.videoWidth;
-                    canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-                    
-                    const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-                    if (code) { handleScannedData(code.data); }
-                }
-            }
-            animationFrameId = requestAnimationFrame(tick);
-        }
-
-        // スキャン（または手動入力）データの処理
-        function handleScannedData(scannedData) {
-            isScanningPaused = true;
-            if (navigator.vibrate) { navigator.vibrate(200); }
-            
-            let qrNum = scannedData.trim();
-            try {
-                const url = new URL(scannedData);
-                qrNum = url.searchParams.get('id') || url.searchParams.get('get') || scannedData.trim();
-            } catch (e) {}
-
-            activeQrNum = qrNum;
-            const student = studentDb[qrNum];
-
-            if (student) {
-                // すでに登録済みの場合 ➔ 修正モーダルを開く
-                openAdminInputModal(qrNum, true);
-            } else {
-                // 登録がない場合 ➔ 新規登録モーダルを開く
-                openAdminInputModal(qrNum, false);
-            }
-        }
-
-        // 手動で管理番号を入力して検索・登録する処理
-        function submitManualNumber() {
-            const input = document.getElementById('manual-number-input');
-            const num = input.value.trim();
-            if (!num) {
-                alert("番号を入力してください。");
-                return;
-            }
-            handleScannedData(num);
-            input.value = ''; // 入力欄をクリア
-        }
-
-        // 入力モーダルの表示
-        function openAdminInputModal(qrNum, isEdit = false) {
-            document.getElementById('modal-qr-num').innerText = qrNum;
-            const titleEl = document.getElementById('modal-title');
-            const goushaSelect = document.getElementById('input-gousha');
-            const nameInput = document.getElementById('input-name');
-
-            if (isEdit) {
-                titleEl.innerHTML = `<i class="fa-solid fa-user-pen text-slate-700 mr-2"></i>登録情報の修正`;
-                goushaSelect.value = studentDb[qrNum].gousha;
-                nameInput.value = studentDb[qrNum].name;
-            } else {
-                titleEl.innerHTML = `<i class="fa-solid fa-user-plus text-slate-700 mr-2"></i>名簿に新規登録`;
-                goushaSelect.value = "1号車";
-                nameInput.value = '';
-            }
-
-            const modal = document.getElementById('admin-input-modal');
-            modal.classList.remove('hidden');
-            nameInput.focus();
-        }
-
-        // 登録・修正を保存する処理
-        function submitAdminInput() {
-            const gousha = document.getElementById('input-gousha').value;
-            const name = document.getElementById('input-name').value.trim();
-            if (!name) { alert("名前を入力してください。"); return; }
-            
-            studentDb[activeQrNum] = { name: name, gousha: gousha };
-            localStorage.setItem('student_db', JSON.stringify(studentDb));
-
-            renderStudentDb();
-            closeAdminInputModal();
-            isScanningPaused = false;
-            forceVideoPlay();
-        }
-
-        function cancelAdminInput() {
-            closeAdminInputModal();
-            isScanningPaused = false;
-            forceVideoPlay();
-        }
-
-        function closeAdminInputModal() {
-            document.getElementById('admin-input-modal').classList.add('hidden');
-        }
-
-        // 登録名簿一覧の描画
-        function renderStudentDb() {
-            const listEl = document.getElementById('student-db-list');
-            listEl.innerHTML = '';
-            const keys = Object.keys(studentDb);
-
-            if (keys.length === 0) {
-                listEl.innerHTML = `<p class="text-center py-6 text-slate-400">登録されている生徒名簿はありません</p>`;
-                return;
-            }
-
-            // 番号順（昇順）にソートして表示
-            keys.sort((a, b) => {
-                return (parseInt(a) || 0) - (parseInt(b) || 0);
-            });
-
-            keys.forEach(qrNum => {
-                const s = studentDb[qrNum];
-                listEl.innerHTML += `
-                    <div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm">
-                        <div class="flex items-center space-x-3">
-                            <span class="bg-slate-100 text-slate-600 p-2 rounded-lg text-sm font-bold font-mono">#${qrNum}</span>
-                            <div>
-                                <span class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${s.gousha}</span>
-                                <span class="font-bold text-slate-800 ml-1.5">${s.name}</span>
-                            </div>
-                        </div>
-                        <div class="flex space-x-1">
-                            <button onclick="openAdminInputModal('${qrNum}', true)" class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold px-2.5 py-1 rounded border border-slate-200 bg-slate-50">
-                                ✏️修正
-                            </button>
-                            <button onclick="deleteStudent('${qrNum}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function deleteStudent(qrNum) {
-            const s = studentDb[qrNum];
-            if (confirm(`「${s.gousha} の ${s.name}」さんを名簿から削除しますか？`)) {
-                delete studentDb[qrNum];
-                localStorage.setItem('student_db', JSON.stringify(studentDb));
-                renderStudentDb();
-            }
-        }
-
-        function clearStudentDb() {
-            if (confirm("登録されている「名簿一覧」をすべて消去しますか？")) {
-                studentDb = {};
-                localStorage.removeItem('student_db');
-                renderStudentDb();
             }
         }
     </script>
