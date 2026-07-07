@@ -9,11 +9,11 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></link>
     <!-- jsQR (QRコード読み取りライブラリ) -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-3xl mx-auto shadow-2xl bg-white pb-8">
 
-    <!-- ヘッダー -->
+    <!-- ヘッダー (オフライン表示を削除し、すっきりさせました) -->
     <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
         <div class="flex items-center space-x-2">
             <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
@@ -37,14 +37,14 @@
             <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded px-2 py-0.5 ml-2">キャンセル</button>
         </div>
 
-        <!-- カメラ映像表示エリア (正方形) -->
+        <!-- カメラ映像表示エリア (正方形・iPadの自動再生ロックを回避) -->
         <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-xs mx-auto flex items-center justify-center border border-gray-200 shadow-md">
             <div id="camera-loading" class="text-white text-center p-4">
                 <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
                 <p class="text-sm">カメラを起動しています...</p>
             </div>
             <div id="camera-container" class="hidden w-full h-full relative">
-                <video id="scanner-video" class="w-full h-full object-cover" playsinline></video>
+                <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
                 <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
             </div>
         </div>
@@ -93,7 +93,7 @@
         </div>
 
         <!-- コントロールボタン -->
-        <div class="max-w-md mx-auto w-full pt-4 border-t flex flex-col sm:flex-row gap-3 justify-end items-center text-xs">
+        <div class="max-w-md mx-auto w-full pt-4 border-t flex justify-end items-center text-xs">
             <button onclick="clearTicketLinks()" class="text-red-500 font-bold hover:text-red-700 flex items-center space-x-1">
                 <i class="fa-solid fa-unlink"></i><span>すべての優先券の紐付け（登録）を解除する</span>
             </button>
@@ -213,11 +213,11 @@
         let isScanningPaused = false;
         
         let activeQrNum = null; 
-        let pendingQrNum = null; // 登録待機中のおかわり優先券番号
+        let pendingQrNum = null; 
         let tempTargetRow = null; 
         let tempTargetCol = null;
 
-        // 紐付けデータベース：{ "優先券番号": { row, col, name, sNum } }
+        // 紐付けデータベース
         let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
 
         window.onload = function() {
@@ -225,7 +225,6 @@
             renderSeatingChart();
         };
 
-        // 教室座席表（6列×6行）を描画する
         function renderSeatingChart() {
             renderBlock('block-left', [1, 2]);
             renderBlock('block-middle', [3, 4]);
@@ -235,8 +234,6 @@
         function renderBlock(elementId, cols) {
             const blockEl = document.getElementById(elementId);
             blockEl.innerHTML = '';
-            
-            // Row 1（上）➔ Row 6（下）
             for (let row = 1; row <= 6; row++) {
                 cols.forEach(col => {
                     blockEl.appendChild(createSeatElement(row, col));
@@ -244,32 +241,24 @@
             }
         }
 
-        // 個々の座席ボタンを生成
         function createSeatElement(row, col) {
             const rosterStudent = classroomRoster[`${row}-${col}`];
             const btn = document.createElement('button');
             btn.className = "w-full aspect-[2/1] rounded-lg border text-center transition-all active:scale-95 text-xs shadow-sm flex flex-col justify-center items-center p-1 overflow-hidden relative box-border ";
 
             if (rosterStudent) {
-                // この座標に紐づく優先券データがあるか検索
                 const linkedTicketEntry = Object.entries(studentDb).find(([ticketNum, data]) => data.row === row && data.col === col);
 
                 if (linkedTicketEntry) {
                     const [ticketNum, s] = linkedTicketEntry;
-                    
-                    // 【優先券が登録されている状態】➔ グリーン背景 ＋ カードマーク点灯
                     btn.classList.add("bg-emerald-50", "border-emerald-400", "text-emerald-950", "hover:bg-emerald-100");
                     btn.innerHTML = `
-                        <!-- ★【新機能】登録済みの右上に小さく配置される緑色のカードマーク -->
-                        <span class="absolute top-1 right-1 text-emerald-500 text-[10px] leading-none">
-                            <i class="fa-solid fa-address-card"></i>
-                        </span>
+                        <span class="absolute top-1 right-1 text-emerald-500 text-[10px] leading-none"><i class="fa-solid fa-address-card"></i></span>
                         <span class="text-[7px] text-emerald-600 font-mono font-bold leading-none">No.${rosterStudent.sNum} / 券:${ticketNum}</span>
                         <span class="font-extrabold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full">${rosterStudent.name}</span>
                     `;
                     btn.onclick = () => showStudentInfo(ticketNum);
                 } else {
-                    // 【優先券未登録】➔ プレーンな白背景（最初からお名前と出席番号は表示されています）
                     btn.classList.add("bg-white", "border-slate-200", "text-slate-700", "hover:bg-slate-50");
                     btn.innerHTML = `
                         <span class="text-[8px] text-slate-400 font-mono leading-none">No.${rosterStudent.sNum}</span>
@@ -278,31 +267,25 @@
                     btn.onclick = () => handleRosterSeatClick(row, col, rosterStudent);
                 }
             } else {
-                // 通路/空席
                 btn.classList.add("bg-slate-50/50", "border-dashed", "border-slate-100", "text-slate-300", "pointer-events-none");
                 btn.innerHTML = `<span class="text-[9px] font-bold text-slate-200">通路</span>`;
             }
             return btn;
         }
 
-        // 席をクリックした時の挙動
         function handleRosterSeatClick(row, col, studentInfo) {
             if (pendingQrNum) {
-                // 1. スキャン待機中に空席（未登録席）がクリックされた場合 ➔ 紐付け確定モーダルを開く
                 tempTargetRow = row;
                 tempTargetCol = col;
                 openConfirmModal(pendingQrNum, studentInfo.name, row, col);
             } else {
-                // 2. スキャンなしで席が直接タップされた場合 ➔ 手動で優先券番号を入力して紐付け可能
-                const ticketNum = prompt(`「No.${studentInfo.sNum} ${studentInfo.name}」さんに手動で紐付ける【おかわり優先券の番号】を入力してください：`);
+                const ticketNum = prompt(`「No.${studentInfo.sNum} ${studentInfo.name}」さんに手動で紐付ける優先券の番号を入力してください：`);
                 if (ticketNum && ticketNum.trim() !== "") {
                     const cleanedNum = ticketNum.trim();
                     if (studentDb[cleanedNum]) {
                         alert(`その優先券番号（No.${cleanedNum}）はすでに別の生徒に登録されています。`);
                         return;
                     }
-                    
-                    // 紐付けを保存
                     studentDb[cleanedNum] = {
                         row: row,
                         col: col,
@@ -315,7 +298,6 @@
             }
         }
 
-        // スキャン（または手動入力）データの処理
         function handleScannedData(scannedData) {
             isScanningPaused = true;
             if (navigator.vibrate) { navigator.vibrate(200); }
@@ -329,19 +311,15 @@
             const linkedStudent = studentDb[qrNum];
 
             if (linkedStudent) {
-                // 【登録あり】 ➔ 情報確認＆解除（削除）ボタンつきポップアップを表示
                 showStudentInfo(qrNum);
             } else {
-                // 【登録なし】 ➔ 登録保留バナーを出し、座席の選択を促す
                 pendingQrNum = qrNum;
                 document.getElementById('pending-qr-label').innerText = qrNum;
                 document.getElementById('pending-banner').classList.remove('hidden');
-                
                 forceVideoPlay();
             }
         }
 
-        // 登録情報の確認ポップアップ（中央表示）
         function showStudentInfo(ticketNum) {
             const data = studentDb[ticketNum];
             if (!data) return;
@@ -350,7 +328,6 @@
             document.getElementById('detail-qr-num').innerText = "No. " + ticketNum;
             document.getElementById('detail-snum').innerText = "No. " + data.sNum;
             
-            // 下部が黒板なので、Row 6が前から1行目
             const displayRow = 7 - data.row;
             document.getElementById('detail-seat').innerText = `${data.col}列目 - 前から${displayRow}行目`;
             document.getElementById('detail-name').innerText = data.name + " さん";
@@ -371,7 +348,6 @@
             forceVideoPlay();
         }
 
-        // 紐付けの解除（白席に戻るが、名前は消えません）
         function deleteTicketLinkFromDetail() {
             if (confirm("本当にこの優先券の紐付け登録を解除しますか？\n（生徒の名前は消えず、席が未登録の白に戻ります）")) {
                 delete studentDb[activeQrNum];
@@ -381,7 +357,6 @@
             }
         }
 
-        // 紐付け確定確認モーダルを開く
         function openConfirmModal(ticketNum, studentName, row, col) {
             document.getElementById('confirm-ticket-num').innerText = "No. " + ticketNum;
             document.getElementById('confirm-student-name').innerText = studentName + " さん";
@@ -398,15 +373,12 @@
             forceVideoPlay();
         }
 
-        // 紐付けを実行
         function submitTicketLink() {
             const rosterStudent = classroomRoster[`${tempTargetRow}-${tempTargetCol}`];
             if (!rosterStudent) return;
 
-            // 他の人がすでに同じチケットを持っていた場合は自動で古い紐付けを削除
             delete studentDb[pendingQrNum];
 
-            // データベースに登録
             studentDb[pendingQrNum] = {
                 row: tempTargetRow,
                 col: tempTargetCol,
@@ -443,7 +415,6 @@
             input.value = ''; 
         }
 
-        // 全紐付け登録のクリア
         function clearTicketLinks() {
             if (confirm("登録されている「すべての優先券の紐付け登録」を完全にリセットしますか？\n（名簿のお名前は消えず、全員が未登録の白席に戻ります）")) {
                 studentDb = {};
@@ -451,17 +422,6 @@
                 renderSeatingChart();
                 cancelPendingRegistration();
                 alert("すべての紐付けを解除しました！");
-            }
-        }
-
-        // テスト用のリセット (初期化)
-        function resetToDefault1Year3Class() {
-            if (confirm("紐付け情報をすべてリセットして、初期の未登録状態に戻しますか？")) {
-                studentDb = {};
-                localStorage.removeItem('student_db');
-                renderSeatingChart();
-                cancelPendingRegistration();
-                alert("リセット完了しました！");
             }
         }
 
@@ -516,6 +476,31 @@
             if (video && video.paused && videoStream) {
                 video.play().catch(e => console.warn("再生再開エラー:", e));
             }
+        }
+
+        const canvasElement = document.createElement('canvas');
+        const canvas = canvasElement.getContext('2d');
+
+        function tick() {
+            if (!isScanningPaused) {
+                const video = document.getElementById('scanner-video');
+                if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+                    // iPad OS / Safari 向け解像度0エラー防止ガード
+                    if (video.videoWidth === 0 || video.videoHeight === 0) {
+                        animationFrameId = requestAnimationFrame(tick);
+                        return;
+                    }
+
+                    canvasElement.height = video.videoHeight;
+                    canvasElement.width = video.videoWidth;
+                    canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                    
+                    const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+                    if (code) { handleScannedData(code.data); }
+                }
+            }
+            animationFrameId = requestAnimationFrame(tick);
         }
     </script>
 </body>
