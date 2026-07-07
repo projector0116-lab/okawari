@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>給食おかわり名簿登録システム（座席表完全一致）</title>
+    <title>給食おかわり名簿登録システム（自動カメラ復旧搭載）</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></link>
-    <!-- jsQR (最も読み込みが安定しているCDN配信元) -->
+    <!-- jsQR (QRコード読み取りライブラリ) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-3xl mx-auto shadow-2xl bg-white pb-8">
@@ -19,7 +19,7 @@
             <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
             <div>
                 <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・座席紐付け</h1>
-                <p class="text-[9px] md:text-xs text-slate-400">QRコードを読み取って座席と紐付けます</p>
+                <p class="text-[9px] md:text-xs text-slate-400">QRスキャン、または座席タップで管理を行います（カメラ自動修復対応）</p>
             </div>
         </div>
         <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-full font-bold border border-slate-600 flex items-center">
@@ -29,29 +29,20 @@
 
     <main class="p-4 md:p-6 space-y-5 flex-grow">
 
-        <!-- カメラ映像表示エリア (正方形・Safari解像度クラッシュ防止用レイアウト) -->
+        <!-- カメラ映像表示エリア (正方形・Safariバグ完全回避レイアウト) -->
         <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-xs mx-auto flex items-center justify-center border border-gray-200 shadow-md">
-            <!-- ビデオは常に表示状態に保持（iPad Safariのフリーズ防止） -->
             <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
             <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
             
-            <!-- カメラ起動中・エラー時のオーバーレイ表示（ビデオの上に絶対配置で被せる） -->
+            <!-- カメラ起動中・自動復旧中オーバーレイ表示 -->
             <div id="camera-loading" class="absolute inset-0 bg-black flex flex-col items-center justify-center text-white p-4 transition-opacity duration-300">
                 <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
-                <p class="text-sm font-bold">カメラを起動しています...</p>
+                <p id="loading-text" class="text-sm font-bold">カメラを起動しています...</p>
             </div>
         </div>
 
-        <!-- カメラ再起動＆手動番号入力 -->
+        <!-- 手動番号入力欄 -->
         <div class="max-w-md mx-auto w-full space-y-3">
-            <div class="text-center">
-                <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                    <span>📷 カメラが固まったら再起動</span>
-                </button>
-            </div>
-
-            <!-- 手動番号入力欄 -->
             <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-sm space-y-1.5">
                 <label class="block text-[10px] font-bold text-slate-600"><i class="fa-solid fa-keyboard mr-1 text-slate-500"></i> 優先券の番号を手動入力して登録 / 検索</label>
                 <div class="flex space-x-2">
@@ -66,7 +57,7 @@
         <!-- 3. 教室座席表（上が鍋本さん ➔ 下が山田さん ➔ 最下部：黒板の完全一致レイアウト） -->
         <div id="seating-section" class="space-y-4 mx-auto w-full pt-4 border-t">
             
-            <!-- ★【改善】スキャン時の案内テキストを「座席表の上」に配置 -->
+            <!-- スキャン時案内バナー (座席表の真上に配置) -->
             <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center max-w-xl mx-auto shadow-sm">
                 <span>
                     <i class="fa-solid fa-circle-info mr-1"></i> 優先券 <strong id="pending-qr-label" class="underline text-sm text-red-600"></strong> を登録します。座席表から割り当てる生徒の席を押してください。
@@ -86,7 +77,7 @@
                 <div id="block-right" class="grid grid-cols-2 gap-2"></div>
             </div>
 
-            <!-- 黒板表示板 (画面の下部に配置) -->
+            <!-- 黒板表示板 -->
             <div class="bg-emerald-800 border-2 border-emerald-950 text-white font-bold py-2 rounded-xl text-center text-sm tracking-widest max-w-xl mx-auto shadow flex items-center justify-center space-x-2">
                 <i class="fa-solid fa-chalkboard"></i>
                 <span>黒 板 （下 の 方 ・ 前 方）</span>
@@ -125,7 +116,6 @@
                 </div>
             </div>
 
-            <!-- 操作ボタン -->
             <div class="flex space-x-3 pt-2 border-t">
                 <button onclick="deleteTicketLinkFromDetail()" class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2.5 rounded-xl text-xs transition-colors">
                     紐付けを解除
@@ -167,7 +157,6 @@
     </div>
 
     <script>
-        // 1年3組の固定名簿テンプレート (上がRow 1、下がRow 6)
         const classroomRoster = {
             "1-3": { sNum: "17", name: "鍋本 美歩" },
             "1-4": { sNum: "24", name: "森 晴彌" },
@@ -212,12 +201,19 @@
         let tempTargetRow = null; 
         let tempTargetCol = null;
 
-        // 紐付けデータベース
         let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
+
+        // カメラ自動フ旧ウォッチドッグ用の状態変数
+        let lastVideoTime = -1;
+        let lastVideoTimeUpdateTime = Date.now();
+        let isRecovering = false;
 
         window.onload = function() {
             startCamera();
             renderSeatingChart();
+            
+            // ★フリーズ監視ウォッチドッグ（1秒に1回チェック）
+            setInterval(checkCameraFreeze, 1000);
         };
 
         function renderSeatingChart() {
@@ -308,12 +304,11 @@
             if (linkedStudent) {
                 showStudentInfo(qrNum);
             } else {
-                // 【未登録の場合】 ➔ バナーを表示し、座席表エリアまで自動でスムーズスクロール
                 pendingQrNum = qrNum;
                 document.getElementById('pending-qr-label').innerText = qrNum;
                 document.getElementById('pending-banner').classList.remove('hidden');
                 
-                // ★【新機能】100ミリ秒後に座席表までスムーズに自動スクロール移動
+                // 自動スクロール
                 setTimeout(() => {
                     document.getElementById('seating-section').scrollIntoView({ 
                         behavior: 'smooth', 
@@ -430,13 +425,17 @@
             }
         }
 
-        /* --- カメラ制御 --- */
+        /* --- カメラ制御＆自己診断リカバリーシステム --- */
         async function startCamera() {
             const video = document.getElementById('scanner-video');
             const loadingMessage = document.getElementById('camera-loading');
 
-            // Safari起動バグ回避：ローディングオーバーレイを一旦表示
             loadingMessage.classList.remove('hidden');
+            if (isRecovering) {
+                document.getElementById('loading-text').innerText = "カメラを自動復旧中...";
+            } else {
+                document.getElementById('loading-text').innerText = "カメラを起動しています...";
+            }
 
             try {
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
@@ -446,9 +445,12 @@
                 video.setAttribute('playsinline', true);
                 await video.play();
                 
-                // 起動成功したらローディング画面を隠す
                 loadingMessage.classList.add('hidden');
                 
+                // フリーズ判定タイマーの値を同期
+                lastVideoTime = video.currentTime;
+                lastVideoTimeUpdateTime = Date.now();
+
                 animationFrameId = requestAnimationFrame(tick);
             } catch (err) {
                 console.error(err);
@@ -471,12 +473,41 @@
         }
 
         async function restartCamera() {
-            const loadingMessage = document.getElementById('camera-loading');
-            loadingMessage.classList.remove('hidden');
-            
             stopCamera();
             await startCamera();
             isScanningPaused = false;
+        }
+
+        // カメラのフリーズを1秒周期で自動監視するウォッチドッグ処理
+        async function checkCameraFreeze() {
+            if (isRecovering) return; // 既に復旧処理中の場合は多重起動を防ぐ
+
+            const video = document.getElementById('scanner-video');
+            
+            // スキャン待ち（モーダルが開いておらず、かつカメラ起動済み）の状態のときのみ監視
+            if (video && !video.paused && !isScanningPaused && videoStream) {
+                if (video.currentTime === lastVideoTime) {
+                    const frozenDuration = Date.now() - lastVideoTimeUpdateTime;
+                    
+                    // 2000ミリ秒（2秒）以上映像のタイムスタンプが停止している場合
+                    if (frozenDuration > 2000) {
+                        isRecovering = true;
+                        console.warn("映像停止を検出。自動でカメラを修復します。");
+                        
+                        await restartCamera();
+                        
+                        isRecovering = false;
+                    }
+                } else {
+                    // 映像が順調に動いていれば時間を更新
+                    lastVideoTime = video.currentTime;
+                    lastVideoTimeUpdateTime = Date.now();
+                }
+            } else {
+                // ポップアップが出ている、または停止している間はリセット
+                lastVideoTimeUpdateTime = Date.now();
+                if (video) lastVideoTime = video.currentTime;
+            }
         }
 
         function forceVideoPlay() {
@@ -493,7 +524,6 @@
             if (!isScanningPaused) {
                 const video = document.getElementById('scanner-video');
                 if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    // 解像度が一時的に0になるSafariの仕様バグをループで安全にスルー
                     if (video.videoWidth === 0 || video.videoHeight === 0) {
                         animationFrameId = requestAnimationFrame(tick);
                         return;
