@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>給食おかわり名簿登録システム（座席・チケット紐付け）</title>
+    <title>給食おかわり名簿登録システム（座席表完全一致）</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></link>
-    <!-- jsQR (QRコード読み取りライブラリ) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+    <!-- jsQR (最も読み込みが安定しているCDN配信元) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-3xl mx-auto shadow-2xl bg-white pb-8">
 
-    <!-- ヘッダー (オフライン表示を削除し、すっきりさせました) -->
+    <!-- ヘッダー -->
     <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
         <div class="flex items-center space-x-2">
             <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
             <div>
                 <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・座席紐付け</h1>
-                <p class="text-[9px] md:text-xs text-slate-400">QRコードを生徒の座席と紐付けて管理・確認します</p>
+                <p class="text-[9px] md:text-xs text-slate-400">QRコードを読み取って座席と紐付けます</p>
             </div>
         </div>
         <span class="text-xs bg-slate-700 px-3 py-1.5 rounded-full font-bold border border-slate-600 flex items-center">
@@ -29,23 +29,16 @@
 
     <main class="p-4 md:p-6 space-y-5 flex-grow">
 
-        <!-- 紐付け登録案内バナー (未登録優先券スキャン時に点滅表示) -->
-        <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center max-w-md mx-auto">
-            <span>
-                <i class="fa-solid fa-circle-info mr-1"></i> 優先券 <strong id="pending-qr-label" class="underline"></strong> を登録します。座席表から割り当てる生徒の席を押してください。
-            </span>
-            <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded px-2 py-0.5 ml-2">キャンセル</button>
-        </div>
-
-        <!-- カメラ映像表示エリア (正方形・iPadの自動再生ロックを回避) -->
+        <!-- カメラ映像表示エリア (正方形・Safari解像度クラッシュ防止用レイアウト) -->
         <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-xs mx-auto flex items-center justify-center border border-gray-200 shadow-md">
-            <div id="camera-loading" class="text-white text-center p-4">
+            <!-- ビデオは常に表示状態に保持（iPad Safariのフリーズ防止） -->
+            <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
+            <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
+            
+            <!-- カメラ起動中・エラー時のオーバーレイ表示（ビデオの上に絶対配置で被せる） -->
+            <div id="camera-loading" class="absolute inset-0 bg-black flex flex-col items-center justify-center text-white p-4 transition-opacity duration-300">
                 <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
-                <p class="text-sm">カメラを起動しています...</p>
-            </div>
-            <div id="camera-container" class="hidden w-full h-full relative">
-                <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
-                <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
+                <p class="text-sm font-bold">カメラを起動しています...</p>
             </div>
         </div>
 
@@ -71,8 +64,16 @@
         </div>
 
         <!-- 3. 教室座席表（上が鍋本さん ➔ 下が山田さん ➔ 最下部：黒板の完全一致レイアウト） -->
-        <div class="space-y-4 mx-auto w-full pt-2">
+        <div id="seating-section" class="space-y-4 mx-auto w-full pt-4 border-t">
             
+            <!-- ★【改善】スキャン時の案内テキストを「座席表の上」に配置 -->
+            <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center max-w-xl mx-auto shadow-sm">
+                <span>
+                    <i class="fa-solid fa-circle-info mr-1"></i> 優先券 <strong id="pending-qr-label" class="underline text-sm text-red-600"></strong> を登録します。座席表から割り当てる生徒の席を押してください。
+                </span>
+                <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded px-2.5 py-1 text-[11px] font-bold transition-all ml-2">キャンセル</button>
+            </div>
+
             <h2 class="text-[10px] font-bold text-slate-400 text-center">ロッカー側 (後方)</h2>
 
             <!-- A4用紙と同じレイアウト（長方形マス・常時全員表示） -->
@@ -93,7 +94,7 @@
         </div>
 
         <!-- コントロールボタン -->
-        <div class="max-w-md mx-auto w-full pt-4 border-t flex justify-end items-center text-xs">
+        <div class="max-w-md mx-auto w-full pt-4 border-t flex flex-col sm:flex-row gap-3 justify-end items-center text-xs">
             <button onclick="clearTicketLinks()" class="text-red-500 font-bold hover:text-red-700 flex items-center space-x-1">
                 <i class="fa-solid fa-unlink"></i><span>すべての優先券の紐付け（登録）を解除する</span>
             </button>
@@ -126,7 +127,6 @@
 
             <!-- 操作ボタン -->
             <div class="flex space-x-3 pt-2 border-t">
-                <!-- 登録データの削除（席を白色の未登録状態に戻す） -->
                 <button onclick="deleteTicketLinkFromDetail()" class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2.5 rounded-xl text-xs transition-colors">
                     紐付けを解除
                 </button>
@@ -171,35 +171,30 @@
         const classroomRoster = {
             "1-3": { sNum: "17", name: "鍋本 美歩" },
             "1-4": { sNum: "24", name: "森 晴彌" },
-            
             "2-1": { sNum: "18", name: "古岡 大空" },
             "2-2": { sNum: "1", name: "東 美宙" },
             "2-3": { sNum: "32", name: "劉 軒征" },
             "2-4": { sNum: "20", name: "松村 紗良" },
             "2-5": { sNum: "11", name: "坂口 壮太" },
             "2-6": { sNum: "30", name: "山本いつ菜" },
-
             "3-1": { sNum: "29", name: "山本 葵" },
             "3-2": { sNum: "8", name: "河野 匠真" },
             "3-3": { sNum: "5", name: "大和 颯花" },
             "3-4": { sNum: "22", name: "三輪 亮太" },
             "3-5": { sNum: "6", name: "海津 充葉" },
             "3-6": { sNum: "13", name: "高橋 魁浬" },
-
             "4-1": { sNum: "10", name: "児玉 璃恩" },
             "4-2": { sNum: "23", name: "森 花那" },
             "4-3": { sNum: "31", name: "横田 岳" },
             "4-4": { sNum: "16", name: "中村 咲彩" },
             "4-5": { sNum: "25", name: "安井 新" },
             "4-6": { sNum: "21", name: "三原 知佳" },
-
             "5-1": { sNum: "14", name: "竹上 来瞳" },
             "5-2": { sNum: "27", name: "矢田 崚雅" },
             "5-3": { sNum: "15", name: "栃川 優梨" },
             "5-4": { sNum: "19", name: "松原 彪牙" },
             "5-5": { sNum: "12", name: "杉山 知穂" },
             "5-6": { sNum: "26", name: "安江 稀音" },
-
             "6-1": { sNum: "28", name: "山田 基貴" },
             "6-2": { sNum: "9", name: "河野 莉子" },
             "6-3": { sNum: "7", name: "垣野晏司朗" },
@@ -313,9 +308,19 @@
             if (linkedStudent) {
                 showStudentInfo(qrNum);
             } else {
+                // 【未登録の場合】 ➔ バナーを表示し、座席表エリアまで自動でスムーズスクロール
                 pendingQrNum = qrNum;
                 document.getElementById('pending-qr-label').innerText = qrNum;
                 document.getElementById('pending-banner').classList.remove('hidden');
+                
+                // ★【新機能】100ミリ秒後に座席表までスムーズに自動スクロール移動
+                setTimeout(() => {
+                    document.getElementById('seating-section').scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }, 100);
+
                 forceVideoPlay();
             }
         }
@@ -428,8 +433,10 @@
         /* --- カメラ制御 --- */
         async function startCamera() {
             const video = document.getElementById('scanner-video');
-            const container = document.getElementById('camera-container');
             const loadingMessage = document.getElementById('camera-loading');
+
+            // Safari起動バグ回避：ローディングオーバーレイを一旦表示
+            loadingMessage.classList.remove('hidden');
 
             try {
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
@@ -439,13 +446,16 @@
                 video.setAttribute('playsinline', true);
                 await video.play();
                 
+                // 起動成功したらローディング画面を隠す
                 loadingMessage.classList.add('hidden');
-                container.classList.remove('hidden');
                 
                 animationFrameId = requestAnimationFrame(tick);
             } catch (err) {
                 console.error(err);
-                loadingMessage.innerText = "カメラの起動に失敗しました。利用許可が出ているか確認してください。";
+                loadingMessage.innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500 text-3xl mb-2"></i>
+                    <p class="text-xs text-center font-bold">カメラ起動エラー<br>利用許可が出ているか確認してください</p>
+                `;
             }
         }
 
@@ -462,9 +472,7 @@
 
         async function restartCamera() {
             const loadingMessage = document.getElementById('camera-loading');
-            const container = document.getElementById('camera-container');
             loadingMessage.classList.remove('hidden');
-            container.classList.add('hidden');
             
             stopCamera();
             await startCamera();
@@ -485,7 +493,7 @@
             if (!isScanningPaused) {
                 const video = document.getElementById('scanner-video');
                 if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    // iPad OS / Safari 向け解像度0エラー防止ガード
+                    // 解像度が一時的に0になるSafariの仕様バグをループで安全にスルー
                     if (video.videoWidth === 0 || video.videoHeight === 0) {
                         animationFrameId = requestAnimationFrame(tick);
                         return;
