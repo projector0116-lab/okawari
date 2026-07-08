@@ -3,19 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>給食おかわり名簿登録システム（座席・チケット紐付け）</title>
+    <title>給食おかわり名簿登録システム（アニメーション演出搭載）</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></link>
     <!-- jsQR (QRコード読み取りライブラリ) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <style>
+        /* 座席表アコーディオン（開閉）のスムーズなアニメーション */
+        #main-seating-wrapper {
+            transition: max-height 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+        }
+
+        /* フェーズ2: 名前やお席番号（スライド＆フェードイン） */
+        .seat-content {
+            transform: translateY(16px);
+            opacity: 0;
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+        }
+
+        /* 親要素に.is-activeがついた時、各マスの中身を順番に出現させる */
+        .is-active .seat-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* フェーズ3: 右上の緑色カードマーク（バウンドポップイン） */
+        .card-badge {
+            transform: scale(0);
+            opacity: 0;
+            transition: transform 0.5s cubic-bezier(0.34, 1.7, 0.64, 1), opacity 0.4s ease;
+        }
+
+        /* アクティブ時に飛び出すように表示 */
+        .is-active .card-badge {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        /* 机のベース（枠線）自体のなめらかな背景色変化 */
+        .seat-button {
+            transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col max-w-3xl mx-auto shadow-2xl bg-white pb-8">
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col pb-12">
 
     <!-- ヘッダー -->
-    <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md">
-        <div class="flex items-center space-x-2">
+    <header id="app-header" class="bg-slate-800 text-white p-4 md:p-6 sticky top-0 z-10 flex justify-between items-center shadow-md w-full">
+        <div class="flex items-center space-x-2 max-w-2xl w-full mx-auto">
             <i class="fa-solid fa-address-book text-xl md:text-2xl text-slate-300"></i>
             <div>
                 <h1 class="text-lg md:text-2xl font-bold tracking-wider">優先券・座席紐付け</h1>
@@ -27,78 +65,88 @@
         </span>
     </header>
 
-    <main class="p-4 md:p-6 space-y-5 flex-grow">
+    <main class="p-4 md:p-6 space-y-6 flex-grow max-w-4xl w-full mx-auto">
 
-        <!-- 紐付け登録案内バナー -->
-        <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center max-w-xl mx-auto shadow-sm">
-            <span>
-                <i class="fa-solid fa-circle-info mr-1"></i> 優先券 <strong id="pending-qr-label" class="underline text-sm text-red-600"></strong> を登録します。座席表から割り当てる生徒の席を押してください。
-            </span>
-            <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded px-2.5 py-1 text-[11px] font-bold transition-all ml-2">キャンセル</button>
-        </div>
-
-        <!-- カメラ映像表示エリア (正方形・Safariバグ回避仕様) -->
+        <!-- カメラ映像表示エリア (正方形) -->
         <div class="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-xs mx-auto flex items-center justify-center border border-gray-200 shadow-md">
             <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
             <div id="scan-frame" class="absolute inset-0 border-4 border-emerald-500 m-10 rounded-lg pointer-events-none opacity-80 animate-pulse"></div>
             
-            <div id="camera-loading" class="absolute inset-0 bg-black flex flex-col items-center justify-center text-white p-4 transition-opacity duration-300">
+            <div id="camera-loading" class="absolute inset-0 bg-black flex flex-col items-center justify-center text-white p-4">
                 <i class="fa-solid fa-circle-notch fa-spin text-4xl mb-3 text-emerald-400"></i>
-                <p id="loading-text" class="text-sm font-bold">カメラを起動しています...</p>
+                <p class="text-sm">カメラを起動しています...</p>
             </div>
         </div>
 
-        <!-- カメラ再起動＆手動番号入力 -->
-        <div class="max-w-md mx-auto w-full space-y-3">
+        <!-- オシャレになったカメラ再起動 ＆ 手動入力エリア -->
+        <div class="w-full space-y-4">
+            <!-- 📷 オシャレにブラッシュアップした再起動ボタン -->
             <div class="text-center">
-                <button onclick="restartCamera()" class="text-xs text-slate-600 hover:text-slate-800 font-bold flex items-center justify-center mx-auto space-x-1 py-1 px-3 bg-slate-200 rounded-full transition-colors">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                    <span>📷 カメラが固まったら再起動</span>
+                <button onclick="restartCamera()" class="inline-flex items-center space-x-2.5 py-2.5 px-6 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs tracking-wider shadow-sm hover:shadow-md hover:from-emerald-100 hover:to-teal-100 active:scale-95 transition-all duration-200 select-none">
+                    <i class="fa-solid fa-arrows-rotate text-emerald-600"></i>
+                    <span>カメラを再起動する</span>
                 </button>
             </div>
 
             <!-- 手動番号入力欄 -->
-            <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-sm space-y-1.5">
-                <label class="block text-[10px] font-bold text-slate-600"><i class="fa-solid fa-keyboard mr-1 text-slate-500"></i> 優先券の番号を手動入力して登録 / 検索</label>
+            <div class="bg-white border border-slate-200 p-3 rounded-xl shadow-sm space-y-1.5 max-w-xs mx-auto">
+                <label class="block text-[10px] font-bold text-slate-500 text-center"><i class="fa-solid fa-keyboard mr-1"></i> 優先券の番号を手動入力</label>
                 <div class="flex space-x-2">
-                    <input type="text" id="manual-number-input" onkeydown="if(event.key === 'Enter') submitManualNumber()" placeholder="例：105（おかわり優先券の管理番号）" class="flex-grow border border-gray-300 rounded-lg p-2 text-xs outline-none focus:ring-1 focus:ring-slate-500">
+                    <input type="text" id="manual-number-input" onkeydown="if(event.key === 'Enter') submitManualNumber()" placeholder="例：105" class="flex-grow border border-gray-300 rounded-lg p-2 text-xs text-center outline-none focus:ring-1 focus:ring-emerald-500">
                     <button onclick="submitManualNumber()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg text-xs transition-colors shadow-sm">
-                        登録 / 検索
+                        登録
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- 3. 教室座席表（上が鍋本さん ➔ 下が山田さん ➔ 最下部：黒板の完全一致レイアウト） -->
-        <div id="seating-section" class="space-y-4 mx-auto w-full pt-4 border-t">
-            <h2 class="text-[10px] font-bold text-slate-400 text-center">ロッカー側 (後方)</h2>
+        <!-- アニメーション付きメイン座席表開閉ボタン -->
+        <div class="text-center max-w-md mx-auto w-full pt-2">
+            <button onclick="toggleMainSeatingChart()" id="toggle-seating-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 px-6 rounded-2xl shadow-md transition-all active:scale-95 text-sm flex items-center justify-center space-x-2">
+                <i id="toggle-seating-icon" class="fa-solid fa-circle-chevron-down"></i>
+                <span id="toggle-seating-text">座席表を表示する</span>
+            </button>
+        </div>
 
-            <!-- A4用紙と同じレイアウト（長方形マス・常時全員表示） -->
-            <div class="grid grid-cols-3 gap-3 md:gap-4 max-w-xl mx-auto w-full">
-                <!-- 左ブロック (1列目・2列目) -->
-                <div id="block-left" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
-                <!-- 中央ブロック (3列目・4列目) -->
-                <div id="block-middle" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
-                <!-- 右ブロック (5列目・6列目) -->
-                <div id="block-right" class="grid grid-cols-2 gap-2"></div>
-            </div>
+        <!-- 3. 教室座席表（アニメーション開閉用ラッパー） -->
+        <div id="seating-section" class="space-y-4 w-full pt-4">
+            
+            <div id="main-seating-wrapper" class="hidden overflow-hidden max-h-0 opacity-0 space-y-4">
+                
+                <!-- 案内バナー (ご指定通り「座席表の上」に配置) -->
+                <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-center text-xs font-bold text-amber-800 animate-pulse flex justify-between items-center w-full shadow-sm">
+                    <span>
+                        <i class="fa-solid fa-circle-info mr-1"></i> 優先券 <strong id="pending-qr-label" class="underline text-sm text-red-600"></strong> を登録します。座席表から割り当てる生徒の席を押してください。
+                    </span>
+                    <button onclick="cancelPendingRegistration()" class="text-red-600 hover:text-red-800 border border-red-200 bg-white rounded-lg px-3 py-1 text-[11px] font-bold transition-all ml-2">キャンセル</button>
+                </div>
 
-            <!-- 黒板表示板 -->
-            <div class="bg-emerald-800 border-2 border-emerald-950 text-white font-bold py-2 rounded-xl text-center text-sm tracking-widest max-w-xl mx-auto shadow flex items-center justify-center space-x-2">
-                <i class="fa-solid fa-chalkboard"></i>
-                <span>黒 板 （下 の 方 ・ 前 方）</span>
+                <h2 class="text-[10px] font-bold text-slate-400 text-center">ロッカー側 (後方)</h2>
+
+                <!-- A4用紙と同じレイアウト -->
+                <div class="grid grid-cols-3 gap-3 md:gap-4 w-full">
+                    <div id="block-left" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
+                    <div id="block-middle" class="grid grid-cols-2 gap-2 border-r pr-1.5 md:pr-2 border-slate-200"></div>
+                    <div id="block-right" class="grid grid-cols-2 gap-2"></div>
+                </div>
+
+                <!-- 黒板表示板 (画面の下部に配置) -->
+                <div class="bg-emerald-800 border-2 border-emerald-950 text-white font-bold py-2 rounded-xl text-center text-sm tracking-widest w-full shadow flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-chalkboard"></i>
+                    <span>黒 板 （下 の 方 ・ 前 方）</span>
+                </div>
             </div>
         </div>
 
         <!-- コントロールボタン -->
-        <div class="max-w-md mx-auto w-full pt-4 border-t flex flex-col sm:flex-row gap-3 justify-end items-center text-xs">
+        <div class="w-full pt-4 border-t flex justify-end items-center text-xs">
             <button onclick="clearTicketLinks()" class="text-red-500 font-bold hover:text-red-700 flex items-center space-x-1">
                 <i class="fa-solid fa-unlink"></i><span>すべての優先券の紐付け（登録）を解除する</span>
             </button>
         </div>
     </main>
 
-    <!-- 【中央ポップアップ】紐付け生徒情報の確認＆解除モーダル -->
+    <!-- 【中央ポップアップ】紐付け確認＆解除モーダル -->
     <div id="student-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div id="student-detail-card" class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl text-center transform scale-95 transition-all duration-200">
             <h3 class="text-lg font-bold text-slate-800 flex items-center border-b pb-2"><i class="fa-solid fa-id-card text-slate-700 mr-2"></i>登録情報の確認</h3>
@@ -163,44 +211,37 @@
     </div>
 
     <script>
-        // 1年3組の固定名簿テンプレート (上がRow 1、下がRow 6)
-        // ★ 山本いつな(#30) と 岩月あんな(#3) の座席位置(座標)を入れ替えました
         const classroomRoster = {
             "1-3": { sNum: "17", name: "鍋本 美歩" },
             "1-4": { sNum: "24", name: "森 晴彌" },
-            
             "2-1": { sNum: "18", name: "古岡 大空" },
             "2-2": { sNum: "1", name: "東 美宙" },
             "2-3": { sNum: "32", name: "劉 軒征" },
             "2-4": { sNum: "20", name: "松村 紗良" },
             "2-5": { sNum: "11", name: "坂口 壮太" },
-            "2-6": { sNum: "3", name: "岩月 杏奈" }, // ★山本いつ菜から岩月杏奈へ変更
-
+            "2-6": { sNum: "3", name: "岩月 杏奈" }, 
             "3-1": { sNum: "29", name: "山本 葵" },
             "3-2": { sNum: "8", name: "河野 匠真" },
             "3-3": { sNum: "5", name: "大和 颯花" },
             "3-4": { sNum: "22", name: "三輪 亮太" },
             "3-5": { sNum: "6", name: "海津 充葉" },
             "3-6": { sNum: "13", name: "高橋 魁浬" },
-
             "4-1": { sNum: "10", name: "児玉 璃恩" },
             "4-2": { sNum: "23", name: "森 花那" },
             "4-3": { sNum: "31", name: "横田 岳" },
             "4-4": { sNum: "16", name: "中村 咲彩" },
             "4-5": { sNum: "25", name: "安井 新" },
             "4-6": { sNum: "21", name: "三原 知佳" },
-
             "5-1": { sNum: "14", name: "竹上 来瞳" },
             "5-2": { sNum: "27", name: "矢田 崚雅" },
             "5-3": { sNum: "15", name: "栃川 優梨" },
             "5-4": { sNum: "19", name: "松原 彪牙" },
             "5-5": { sNum: "12", name: "杉山 知穂" },
             "5-6": { sNum: "26", name: "安江 稀音" },
-
             "6-1": { sNum: "28", name: "山田 基貴" },
             "6-2": { sNum: "9", name: "河野 莉子" },
             "6-3": { sNum: "7", name: "垣野晏司朗" },
-            "6-4": { sNum: "30", name: "山本いつ菜" }, // ★岩月杏奈から山本いつ菜へ変更
+            "6-4": { sNum: "30", name: "山本いつ菜" }, 
             "6-5": { sNum: "2", name: "伊藤 勇翔" },
             "6-6": { sNum: "4", name: "大沼結希乃" }
         };
@@ -214,10 +255,10 @@
         let tempTargetRow = null; 
         let tempTargetCol = null;
 
-        // 紐付けデータベース
+        let isSeatingChartVisible = false;
+
         let studentDb = JSON.parse(localStorage.getItem('student_db')) || {};
 
-        // カメラ自動復旧ウォッチドッグ用の状態変数
         let lastVideoTime = -1;
         let lastVideoTimeUpdateTime = Date.now();
         let isRecovering = false;
@@ -227,6 +268,57 @@
             renderSeatingChart();
             setInterval(checkCameraFreeze, 1000);
         };
+
+        // メイン座席表の表示切り替え（アコーディオン＋状態アクティブクラス付与）
+        function toggleMainSeatingChart() {
+            const wrapper = document.getElementById('main-seating-wrapper');
+            const text = document.getElementById('toggle-seating-text');
+            const icon = document.getElementById('toggle-seating-icon');
+            
+            isSeatingChartVisible = !isSeatingChartVisible;
+            
+            if (isSeatingChartVisible) {
+                // アニメーションを綺麗に動かすため、開く直前に再レンダリングして状態を初期化
+                renderSeatingChart();
+                
+                wrapper.classList.remove('hidden');
+                
+                // 高さ・透明度のアニメーションを開始
+                setTimeout(() => {
+                    wrapper.style.maxHeight = '1500px';
+                    wrapper.style.opacity = '1';
+                }, 10);
+                
+                // 少し時間差を置いて、下からの文字ウェーブアニメーションをトリガー
+                setTimeout(() => {
+                    wrapper.classList.add('is-active');
+                }, 150);
+
+                text.innerText = "座席表を非表示にする";
+                icon.className = "fa-solid fa-circle-chevron-up";
+            } else {
+                // 閉じる時は一瞬でクラスを外し、高さを0にする
+                wrapper.classList.remove('is-active');
+                wrapper.style.maxHeight = '0px';
+                wrapper.style.opacity = '0';
+                
+                setTimeout(() => {
+                    if (!isSeatingChartVisible) {
+                        wrapper.classList.add('hidden');
+                    }
+                }, 500);
+
+                text.innerText = "座席表を表示する";
+                icon.className = "fa-solid fa-circle-chevron-down";
+            }
+        }
+
+        // 外部（スキャンなど）から座席表を自動展開するための安全な関数
+        function forceShowSeatingChart() {
+            if (!isSeatingChartVisible) {
+                toggleMainSeatingChart();
+            }
+        }
 
         function renderSeatingChart() {
             renderBlock('block-left', [1, 2]);
@@ -244,34 +336,56 @@
             }
         }
 
+        // マス目を動的に生成（ご指定いただいた下からのウェーブアニメーションのディレイ計算を含む）
         function createSeatElement(row, col) {
             const rosterStudent = classroomRoster[`${row}-${col}`];
             const btn = document.createElement('button');
-            btn.className = "w-full aspect-[2/1] rounded-lg border text-center transition-all active:scale-95 text-xs shadow-sm flex flex-col justify-center items-center p-1 overflow-hidden relative box-border ";
+            btn.className = "seat-button w-full aspect-[2/1] rounded-lg border text-center text-xs shadow-sm flex flex-col justify-center items-center p-1 overflow-hidden relative box-border ";
+
+            // ★【核心部分】下から順（6行目 ➔ 1行目の順）にお名前を表示するための遅延ミリ秒計算
+            // 6行目（山田さん：一番下）はディレイ 100ms
+            // 1行目（鍋本さん：一番上）はディレイ 100 + (5 * 120) = 700ms となり、下から波のように名前が上がってきます。
+            const nameDelay = (6 - row) * 120 + 100;
+            // 優先券マークは、お名前が出現したあとにポンと飛び出るようにディレイをさらに400msプラス
+            const badgeDelay = nameDelay + 350;
 
             if (rosterStudent) {
                 const linkedTicketEntry = Object.entries(studentDb).find(([ticketNum, data]) => data.row === row && data.col === col);
 
                 if (linkedTicketEntry) {
                     const [ticketNum, s] = linkedTicketEntry;
-                    btn.classList.add("bg-emerald-50", "border-emerald-400", "text-emerald-950", "hover:bg-emerald-100");
+                    btn.classList.add("bg-emerald-50", "border-emerald-300", "hover:bg-emerald-100");
                     btn.innerHTML = `
-                        <span class="absolute top-1 right-1 text-emerald-500 text-[10px] leading-none"><i class="fa-solid fa-address-card"></i></span>
-                        <span class="text-[7px] text-emerald-600 font-mono font-bold leading-none">No.${rosterStudent.sNum} / 券:${ticketNum}</span>
-                        <span class="font-extrabold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full">${rosterStudent.name}</span>
+                        <!-- フェーズ3: 右上の緑色カードマーク (遅延を個別に適用) -->
+                        <span class="card-badge absolute top-1 right-1 text-emerald-500 text-[10px] leading-none" style="transition-delay: ${badgeDelay}ms;">
+                            <i class="fa-solid fa-address-card"></i>
+                        </span>
+                        
+                        <!-- フェーズ2: 名前と出席番号 (遅延を個別に適用) -->
+                        <div class="seat-content w-full flex flex-col items-center" style="transition-delay: ${nameDelay}ms;">
+                            <span class="text-[7px] text-emerald-600 font-mono font-bold leading-none">No.${rosterStudent.sNum} / 券:${ticketNum}</span>
+                            <span class="font-extrabold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full text-emerald-950">${rosterStudent.name}</span>
+                        </div>
                     `;
                     btn.onclick = () => showStudentInfo(ticketNum);
                 } else {
-                    btn.classList.add("bg-white", "border-slate-200", "text-slate-700", "hover:bg-slate-50");
+                    btn.classList.add("bg-white", "border-slate-200", "hover:bg-slate-50");
                     btn.innerHTML = `
-                        <span class="text-[8px] text-slate-400 font-mono leading-none">No.${rosterStudent.sNum}</span>
-                        <span class="font-bold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full text-slate-800">${rosterStudent.name}</span>
+                        <!-- フェーズ2: 名前と出席番号 -->
+                        <div class="seat-content w-full flex flex-col items-center" style="transition-delay: ${nameDelay}ms;">
+                            <span class="text-[8px] text-slate-400 font-mono leading-none">No.${rosterStudent.sNum}</span>
+                            <span class="font-bold text-[11px] md:text-sm tracking-wide mt-0.5 truncate max-w-full text-slate-800">${rosterStudent.name}</span>
+                        </div>
                     `;
                     btn.onclick = () => handleRosterSeatClick(row, col, rosterStudent);
                 }
             } else {
                 btn.classList.add("bg-slate-50/50", "border-dashed", "border-slate-100", "text-slate-300", "pointer-events-none");
-                btn.innerHTML = `<span class="text-[9px] font-bold text-slate-200">通路</span>`;
+                btn.innerHTML = `
+                    <div class="seat-content w-full flex flex-col items-center" style="transition-delay: ${nameDelay}ms;">
+                        <span class="text-[9px] font-bold text-slate-200">通路</span>
+                    </div>
+                `;
             }
             return btn;
         }
@@ -320,12 +434,16 @@
                 document.getElementById('pending-qr-label').innerText = qrNum;
                 document.getElementById('pending-banner').classList.remove('hidden');
                 
+                // ★【改善】座席表が閉じている場合は、アニメーション付きで自動展開
+                forceShowSeatingChart();
+
+                // アニメーションの開始を見届けてからスクロールするように僅かにディレイを置いて実行
                 setTimeout(() => {
                     document.getElementById('seating-section').scrollIntoView({ 
                         behavior: 'smooth', 
                         block: 'start' 
                     });
-                }, 100);
+                }, 300);
 
                 forceVideoPlay();
             }
@@ -483,9 +601,6 @@
         }
 
         async function restartCamera() {
-            const loadingMessage = document.getElementById('camera-loading');
-            loadingMessage.classList.remove('hidden');
-            
             stopCamera();
             await startCamera();
             isScanningPaused = false;
